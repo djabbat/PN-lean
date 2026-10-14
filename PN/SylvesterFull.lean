@@ -873,6 +873,91 @@ lemma mid_ineq_from_M {k n : ℕ} (hk : 0 < k)
 /-! ### Region inequalities (the analytic estimates) -/
 
 -- These are the real inequalities. Each is numerically verified; proved below.
+
+/-! ### Far-region psi decomposition (foundation for `far_ineq`) -/
+
+/-- `ψ(√n) ≤ √n·ln4 + n^{1/4}·ln n` for `1 ≤ n`. -/
+lemma psi_sqrt_bound {n : ℝ} (hn : 1 ≤ n) :
+    Chebyshev.psi (Real.sqrt n) ≤ Real.log 4 * Real.sqrt n + n ^ ((4 : ℝ)⁻¹) * Real.log n := by
+  have hsqrt1 : (1 : ℝ) ≤ Real.sqrt n := by
+    have h := Real.sqrt_le_sqrt (by linarith : (1 : ℝ) ≤ n)
+    have h1 : Real.sqrt (1 : ℝ) = 1 := by norm_num
+    rw [h1] at h
+    exact h
+  have hp := Chebyshev.psi_le hsqrt1
+  have hsqrt : Real.sqrt (Real.sqrt n) = n ^ ((4 : ℝ)⁻¹) := by
+    rw [Real.sqrt_eq_rpow]
+    rw [Real.sqrt_eq_rpow]
+    rw [← Real.rpow_mul (by linarith : 0 ≤ n)]
+    norm_num
+  have hlog : Real.log (Real.sqrt n) = Real.log n / 2 := Real.log_sqrt (le_trans (by norm_num : (0 : ℝ) ≤ 1) hn)
+  have hmain : 2 * Real.sqrt (Real.sqrt n) * Real.log (Real.sqrt n) ≤ n ^ ((4 : ℝ)⁻¹) * Real.log n := by
+    calc
+      2 * Real.sqrt (Real.sqrt n) * Real.log (Real.sqrt n)
+          = n ^ ((4 : ℝ)⁻¹) * Real.log n := by
+            rw [hsqrt, hlog]
+            field_simp
+    _ ≤ n ^ ((4 : ℝ)⁻¹) * Real.log n := le_rfl
+  nlinarith
+
+/-- `ψ(n^{1/3}) ≤ n^{1/3}·ln4 + (2/3)·n^{1/6}·ln n` for `1 ≤ n`. -/
+lemma psi_cube_bound {n : ℝ} (hn : 1 ≤ n) :
+    Chebyshev.psi (n ^ ((3 : ℝ)⁻¹)) ≤ Real.log 4 * n ^ ((3 : ℝ)⁻¹) + (2 / 3) * n ^ ((6 : ℝ)⁻¹) * Real.log n := by
+  have hn3 : (1 : ℝ) ≤ n ^ ((3 : ℝ)⁻¹) := by
+    have h := Real.rpow_le_rpow (by norm_num : (0 : ℝ) ≤ 1) (by linarith : 1 ≤ n) (by norm_num : (0 : ℝ) ≤ (3 : ℝ)⁻¹)
+    rwa [Real.one_rpow] at h
+  have hp := Chebyshev.psi_le hn3
+  have hsqrt : Real.sqrt (n ^ ((3 : ℝ)⁻¹)) = n ^ ((6 : ℝ)⁻¹) := by
+    have hn0 : (0 : ℝ) ≤ n := le_trans (by norm_num : (0 : ℝ) ≤ 1) hn
+    rw [Real.sqrt_eq_rpow]
+    rw [← Real.rpow_mul hn0]
+    norm_num
+  have hlog : Real.log (n ^ ((3 : ℝ)⁻¹)) = Real.log n / 3 := by
+    rw [Real.log_rpow (by linarith : 0 < n)]
+    ring
+  have hmain : 2 * Real.sqrt (n ^ ((3 : ℝ)⁻¹)) * Real.log (n ^ ((3 : ℝ)⁻¹))
+      ≤ (2 / 3) * n ^ ((6 : ℝ)⁻¹) * Real.log n := by
+    calc
+      2 * Real.sqrt (n ^ ((3 : ℝ)⁻¹)) * Real.log (n ^ ((3 : ℝ)⁻¹))
+          = (2 / 3) * n ^ ((6 : ℝ)⁻¹) * Real.log n := by
+            rw [hsqrt, hlog]
+            field_simp
+    _ ≤ (2 / 3) * n ^ ((6 : ℝ)⁻¹) * Real.log n := le_rfl
+  nlinarith
+
+/-- `ψ(n^{1/5}) ≤ n^{1/5}·ln4 + (2/5)·n^{1/10}·ln n` for `1 ≤ n`. -/
+lemma psi_fifth_bound {n : ℝ} (hn : 1 ≤ n) :
+    Chebyshev.psi (n ^ ((5 : ℝ)⁻¹)) ≤ Real.log 4 * n ^ ((5 : ℝ)⁻¹) + (2 / 5) * n ^ ((10 : ℝ)⁻¹) * Real.log n := by
+  have hn5 : (1 : ℝ) ≤ n ^ ((5 : ℝ)⁻¹) := by
+    have h := Real.rpow_le_rpow (by norm_num : (0 : ℝ) ≤ 1) (by linarith : 1 ≤ n) (by norm_num : (0 : ℝ) ≤ (5 : ℝ)⁻¹)
+    rwa [Real.one_rpow] at h
+  have hp := Chebyshev.psi_le hn5
+  have hsqrt : Real.sqrt (n ^ ((5 : ℝ)⁻¹)) = n ^ ((10 : ℝ)⁻¹) := by
+    have hn0 : (0 : ℝ) ≤ n := le_trans (by norm_num : (0 : ℝ) ≤ 1) hn
+    rw [Real.sqrt_eq_rpow]
+    rw [← Real.rpow_mul hn0]
+    norm_num
+  have hlog : Real.log (n ^ ((5 : ℝ)⁻¹)) = Real.log n / 5 := by
+    rw [Real.log_rpow (by linarith : 0 < n)]
+    ring
+  have hmain : 2 * Real.sqrt (n ^ ((5 : ℝ)⁻¹)) * Real.log (n ^ ((5 : ℝ)⁻¹))
+      ≤ (2 / 5) * n ^ ((10 : ℝ)⁻¹) * Real.log n := by
+    calc
+      2 * Real.sqrt (n ^ ((5 : ℝ)⁻¹)) * Real.log (n ^ ((5 : ℝ)⁻¹))
+          = (2 / 5) * n ^ ((10 : ℝ)⁻¹) * Real.log n := by
+            rw [hsqrt, hlog]
+            field_simp
+    _ ≤ (2 / 5) * n ^ ((10 : ℝ)⁻¹) * Real.log n := le_rfl
+  nlinarith
+
+/-- Combined: `ψ(√n)+ψ(n^{1/3})+ψ(n^{1/5})` bounded by the far bound. -/
+lemma psi_sum_bound {n : ℝ} (hn : 1 ≤ n) :
+    Chebyshev.psi (Real.sqrt n) + Chebyshev.psi (n ^ ((3 : ℝ)⁻¹)) + Chebyshev.psi (n ^ ((5 : ℝ)⁻¹))
+    ≤ Real.log 4 * (Real.sqrt n + n ^ ((3 : ℝ)⁻¹) + n ^ ((5 : ℝ)⁻¹))
+      + n ^ ((4 : ℝ)⁻¹) * Real.log n + (2 / 3) * n ^ ((6 : ℝ)⁻¹) * Real.log n
+      + (2 / 5) * n ^ ((10 : ℝ)⁻¹) * Real.log n := by
+  nlinarith [psi_sqrt_bound hn, psi_cube_bound hn, psi_fifth_bound hn]
+
 lemma far_ineq {k n : ℕ} (hk : 128 ≤ k) (h16 : 16 * k ≤ n) (hn : n < k * k) :
     (4 : ℝ) ^ k * Real.exp (Chebyshev.psi (Real.sqrt (n : ℝ)) +
       Chebyshev.psi ((n : ℝ) ^ ((3 : ℝ)⁻¹)) + Chebyshev.psi ((n : ℝ) ^ ((5 : ℝ)⁻¹))) <
