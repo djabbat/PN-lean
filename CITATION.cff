@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this formalization in your work, please cite it."
+authors:
+  - family-names: Tqemaladze
+    given-names: Jaba
+    orcid: "https://orcid.org/0000-0001-8651-7243"
+title: "PN: Prime number theorems formalized in Lean (Sylvester–Schur)"
+version: 0.2.0
+date-released: 2026-10-15
+keywords:
+  - formal mathematics
+  - Lean 4
+  - mathlib
+  - prime numbers
+  - Sylvester's theorem
+  - Sylvester-Schur theorem
+  - proof assistant
+license: Apache-2.0
