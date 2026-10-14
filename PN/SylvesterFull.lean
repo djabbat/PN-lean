@@ -1300,121 +1300,6 @@ lemma far_region {k n : ℕ} (hk : 128 ≤ k) (h2 : 2 * k ≤ n) (h16 : 16 * k �
     lt_of_le_of_lt hL (far_ineq hk h16 hn)
   exact_mod_cast (lt_of_lt_of_le hlt1 hC)
 
-lemma mid_region {k n : ℕ} (hk : 64 ≤ k) (h2 : 2 * k ≤ n) (h4 : 4 * k ≤ n)
-    (h16 : n < 16 * k) (hn : n < k * k) : L k n < n.choose k := by
-  by_cases h256 : k < 256
-  · have hkk : k ∈ Finset.Icc 64 255 := by
-      rw [Finset.mem_Icc]
-      constructor <;> omega
-    have hmem : n ∈ Finset.Icc (4 * k) (16 * k - 1) := by
-      rw [Finset.mem_Icc]
-      constructor <;> omega
-    exact fin_mid k hkk n hmem
-  · have hk256 : 256 ≤ k := by omega
-  -- L = k#·R ≤ 4^k·(n/2)^π
-  have hL : (L k n : ℝ) ≤ (4 : ℝ) ^ k * ((n : ℝ) / 2) ^ (Nat.primeCounting (Nat.sqrt n) : ℝ) := by
-    calc
-      (L k n : ℝ) = (primorial k : ℝ) * R n := L_eq_primorial_mul_R h2 hn
-      _ ≤ (primorial k : ℝ) * ((n : ℝ) / 2) ^ (Nat.primeCounting (Nat.sqrt n) : ℝ) := by
-          exact mul_le_mul_of_nonneg_left (R_le_pow_div_two (by omega : 2 ≤ n)) (by positivity)
-      _ ≤ (4 : ℝ) ^ k * ((n : ℝ) / 2) ^ (Nat.primeCounting (Nat.sqrt n) : ℝ) := by
-          have h1 : (primorial k : ℝ) ≤ (4 : ℝ) ^ k := by
-            exact_mod_cast (primorial_le_four_pow k)
-          exact mul_le_mul_of_nonneg_right h1 (by positivity)
-  have hC : (4 : ℝ) ^ k / (2 * (k : ℝ) + 1) * ((n : ℝ) / (2 * (k : ℝ))) ^ k ≤
-      (n.choose k : ℝ) := choose_ge_pow_div (by omega : 1 ≤ k) h2
-  have hlt : (L k n : ℝ) < (n.choose k : ℝ) := by
-    exact lt_of_le_of_lt hL (lt_of_lt_of_le (mid_ineq hk256 h4 h16) hC)
-  exact_mod_cast hlt
-
-lemma c2_region {k n : ℕ} (hk : 150 ≤ k) (h2 : 2 * k ≤ n) (h3 : 3 * k ≤ n)
-    (h4 : n < 4 * k) (hn : n < k * k) : L k n < n.choose k := by
-  by_cases h1024 : k < 1024
-  · have hkk : k ∈ Finset.Icc 150 1023 := by
-      rw [Finset.mem_Icc]
-      constructor <;> omega
-    have hmem : n ∈ Finset.Icc (3 * k) (4 * k - 1) := by
-      rw [Finset.mem_Icc]
-      constructor <;> omega
-    exact fin_c2 k hkk n hmem
-  · have hk1024 : 1024 ≤ k := by omega
-  have hL : (L k n : ℝ) ≤ (4 : ℝ) ^ k * ((n : ℝ) / 2) ^ (Nat.primeCounting (Nat.sqrt n) : ℝ) := by
-    calc
-      (L k n : ℝ) = (primorial k : ℝ) * R n := L_eq_primorial_mul_R h2 hn
-      _ ≤ (primorial k : ℝ) * ((n : ℝ) / 2) ^ (Nat.primeCounting (Nat.sqrt n) : ℝ) := by
-          exact mul_le_mul_of_nonneg_left (R_le_pow_div_two (by omega : 2 ≤ n)) (by positivity)
-      _ ≤ (4 : ℝ) ^ k * ((n : ℝ) / 2) ^ (Nat.primeCounting (Nat.sqrt n) : ℝ) := by
-          have h1 : (primorial k : ℝ) ≤ (4 : ℝ) ^ k := by
-            exact_mod_cast (primorial_le_four_pow k)
-          exact mul_le_mul_of_nonneg_right h1 (by positivity)
-  have hC : (4 : ℝ) ^ k / (2 * (k : ℝ) + 1) * ((n : ℝ) / (2 * (k : ℝ))) ^ k ≤
-      (n.choose k : ℝ) := choose_ge_pow_div (by omega : 1 ≤ k) h2
-  have hlt : (L k n : ℝ) < (n.choose k : ℝ) := by
-    exact lt_of_le_of_lt hL (lt_of_lt_of_le (c2_ineq hk1024 h3 h4) hC)
-  exact_mod_cast hlt
-
-lemma c1_region {k n : ℕ} (hk : 150 ≤ k) (h2 : 2 * k ≤ n) (h3 : n < 3 * k)
-    (_hn : n < k * k) (hsmall : ∀ p, p ∈ (n.choose k).primeFactors → p ≤ k) :
-    L k n < n.choose k := by
-  by_cases h1024 : k < 1024
-  · have hkk : k ∈ Finset.Icc 150 1023 := by
-      rw [Finset.mem_Icc]
-      constructor <;> omega
-    have hmem : n ∈ Finset.Icc (2 * k) (3 * k - 1) := by
-      rw [Finset.mem_Icc]
-      constructor <;> omega
-    exact fin_c1 k hkk n hmem
-  · have hk1024 : 1024 ≤ k := by omega
-  -- C(n,k) ≤ L(n/3,n) ≤ 4^(n/3)·(n/2)^π < C(n,k)
-  have hcle : n.choose k ≤ L (n / 3) n := choose_le_L_third (by omega : 9 ≤ n) h2 h3 (by omega) hsmall
-  have hLn : (L (n / 3) n : ℝ) = (primorial (n / 3) : ℝ) * R n := by
-    have h2n : 2 * (n / 3) ≤ n := by omega
-    have hnn : n < (n / 3) * (n / 3) := by
-      have hx : 4 ≤ n / 3 := by omega
-      have hn3 : n < 3 * (n / 3) + 3 := by
-        have h := Nat.div_add_mod n 3
-        omega
-      have hx2 : 3 * (n / 3) + 3 ≤ (n / 3) * (n / 3) := by
-        have hx' : (4 : ℝ) ≤ ((n / 3 : ℕ) : ℝ) := by exact_mod_cast hx
-        have hfact : (((n / 3 : ℕ) : ℝ) * ((n / 3 : ℕ) : ℝ) - 3 * ((n / 3 : ℕ) : ℝ) - 3) =
-            (((n / 3 : ℕ) : ℝ) - 4) * (((n / 3 : ℕ) : ℝ) + 1) + 1 := by ring
-        have h1 : 0 ≤ (((n / 3 : ℕ) : ℝ) - 4) * (((n / 3 : ℕ) : ℝ) + 1) := by
-          have hx4 : 0 ≤ ((n / 3 : ℕ) : ℝ) - 4 := by linarith [hx']
-          have hx1 : 0 ≤ ((n / 3 : ℕ) : ℝ) + 1 := by linarith
-          positivity
-        nlinarith
-      omega
-    exact L_eq_primorial_mul_R h2n hnn
-  have hL : (L (n / 3) n : ℝ) ≤ (4 : ℝ) ^ (n / 3) * ((n : ℝ) / 2) ^ (Nat.primeCounting (Nat.sqrt n) : ℝ) := by
-    calc
-      (L (n / 3) n : ℝ) = (primorial (n / 3) : ℝ) * R n := hLn
-      _ ≤ (primorial (n / 3) : ℝ) * ((n : ℝ) / 2) ^ (Nat.primeCounting (Nat.sqrt n) : ℝ) := by
-          exact mul_le_mul_of_nonneg_left (R_le_pow_div_two (by omega : 2 ≤ n)) (by positivity)
-      _ ≤ (4 : ℝ) ^ (n / 3) * ((n : ℝ) / 2) ^ (Nat.primeCounting (Nat.sqrt n) : ℝ) := by
-          have h1 : (primorial (n / 3) : ℝ) ≤ (4 : ℝ) ^ (n / 3) := by
-            exact_mod_cast (primorial_le_four_pow (n / 3))
-          exact mul_le_mul_of_nonneg_right h1 (by positivity)
-  have hC : (4 : ℝ) ^ k / (2 * (k : ℝ) + 1) * ((n : ℝ) / (2 * (k : ℝ))) ^ k ≤
-      (n.choose k : ℝ) := choose_ge_pow_div (by omega : 1 ≤ k) h2
-  have hlt : (L (n / 3) n : ℝ) < (n.choose k : ℝ) := by
-    exact lt_of_le_of_lt hL (lt_of_lt_of_le (c1_ineq hk1024 h2 h3) hC)
-  have hltn : L (n / 3) n < n.choose k := by exact_mod_cast hlt
-  exact False.elim (lt_irrefl (n.choose k) (lt_of_le_of_lt hcle hltn))
-
-
-
-/-- Finite check: near region `2k ≤ n < 4k` for `64 ≤ k ≤ 149`. -/
-lemma fin_near :
-    ∀ k ∈ Finset.Icc 64 149, ∀ n ∈ Finset.Icc (2 * k) (4 * k - 1),
-      L k n < n.choose k := by
-  native_decide
-
-/-- Finite check: far region `16k ≤ n < k²` for `64 ≤ k ≤ 127`. -/
-lemma fin_far :
-    ∀ k ∈ Finset.Icc 64 127, ∀ n ∈ Finset.Icc (16 * k) (k * k - 1),
-      L k n < n.choose k := by
-  native_decide
-
 /-- Finite check: mid region `4k ≤ n < 16k` for `64 ≤ k ≤ 255`. -/
 lemma fin_mid :
     ∀ k ∈ Finset.Icc 64 255, ∀ n ∈ Finset.Icc (4 * k) (16 * k - 1),
@@ -1433,6 +1318,120 @@ lemma fin_c1 :
       L k n < n.choose k := by
   native_decide
 
+lemma mid_region {k n : ℕ} (hk : 64 ≤ k) (h2 : 2 * k ≤ n) (h4 : 4 * k ≤ n)
+    (h16 : n < 16 * k) (hn : n < k * k) : L k n < n.choose k := by
+  by_cases h256 : k < 256
+  · have hkk : k ∈ Finset.Icc 64 255 := by
+      rw [Finset.mem_Icc]
+      constructor <;> omega
+    have hmem : n ∈ Finset.Icc (4 * k) (16 * k - 1) := by
+      rw [Finset.mem_Icc]
+      constructor <;> omega
+    exact fin_mid k hkk n hmem
+  · have hk256 : 256 ≤ k := by omega
+    -- L = k#·R ≤ 4^k·(n/2)^π
+    have hL : (L k n : ℝ) ≤ (4 : ℝ) ^ k * ((n : ℝ) / 2) ^ (Nat.primeCounting (Nat.sqrt n) : ℝ) := by
+      calc
+        (L k n : ℝ) = (primorial k : ℝ) * R n := L_eq_primorial_mul_R h2 hn
+        _ ≤ (primorial k : ℝ) * ((n : ℝ) / 2) ^ (Nat.primeCounting (Nat.sqrt n) : ℝ) := by
+            exact mul_le_mul_of_nonneg_left (R_le_pow_div_two (by omega : 2 ≤ n)) (by positivity)
+        _ ≤ (4 : ℝ) ^ k * ((n : ℝ) / 2) ^ (Nat.primeCounting (Nat.sqrt n) : ℝ) := by
+            have h1 : (primorial k : ℝ) ≤ (4 : ℝ) ^ k := by
+              exact_mod_cast (primorial_le_four_pow k)
+            exact mul_le_mul_of_nonneg_right h1 (by positivity)
+    have hC : (4 : ℝ) ^ k / (2 * (k : ℝ) + 1) * ((n : ℝ) / (2 * (k : ℝ))) ^ k ≤
+        (n.choose k : ℝ) := choose_ge_pow_div (by omega : 1 ≤ k) h2
+    have hlt : (L k n : ℝ) < (n.choose k : ℝ) := by
+      exact lt_of_le_of_lt hL (lt_of_lt_of_le (mid_ineq hk256 h4 h16) hC)
+    exact_mod_cast hlt
+
+lemma c2_region {k n : ℕ} (hk : 150 ≤ k) (h2 : 2 * k ≤ n) (h3 : 3 * k ≤ n)
+    (h4 : n < 4 * k) (hn : n < k * k) : L k n < n.choose k := by
+  by_cases h1024 : k < 1024
+  · have hkk : k ∈ Finset.Icc 150 1023 := by
+      rw [Finset.mem_Icc]
+      constructor <;> omega
+    have hmem : n ∈ Finset.Icc (3 * k) (4 * k - 1) := by
+      rw [Finset.mem_Icc]
+      constructor <;> omega
+    exact fin_c2 k hkk n hmem
+  · have hk1024 : 1024 ≤ k := by omega
+    have hL : (L k n : ℝ) ≤ (4 : ℝ) ^ k * ((n : ℝ) / 2) ^ (Nat.primeCounting (Nat.sqrt n) : ℝ) := by
+      calc
+        (L k n : ℝ) = (primorial k : ℝ) * R n := L_eq_primorial_mul_R h2 hn
+        _ ≤ (primorial k : ℝ) * ((n : ℝ) / 2) ^ (Nat.primeCounting (Nat.sqrt n) : ℝ) := by
+            exact mul_le_mul_of_nonneg_left (R_le_pow_div_two (by omega : 2 ≤ n)) (by positivity)
+        _ ≤ (4 : ℝ) ^ k * ((n : ℝ) / 2) ^ (Nat.primeCounting (Nat.sqrt n) : ℝ) := by
+            have h1 : (primorial k : ℝ) ≤ (4 : ℝ) ^ k := by
+              exact_mod_cast (primorial_le_four_pow k)
+            exact mul_le_mul_of_nonneg_right h1 (by positivity)
+    have hC : (4 : ℝ) ^ k / (2 * (k : ℝ) + 1) * ((n : ℝ) / (2 * (k : ℝ))) ^ k ≤
+        (n.choose k : ℝ) := choose_ge_pow_div (by omega : 1 ≤ k) h2
+    have hlt : (L k n : ℝ) < (n.choose k : ℝ) := by
+      exact lt_of_le_of_lt hL (lt_of_lt_of_le (c2_ineq hk1024 h3 h4) hC)
+    exact_mod_cast hlt
+
+lemma c1_region {k n : ℕ} (hk : 150 ≤ k) (h2 : 2 * k ≤ n) (h3 : n < 3 * k)
+    (_hn : n < k * k) (hsmall : ∀ p, p ∈ (n.choose k).primeFactors → p ≤ k) :
+    L k n < n.choose k := by
+  by_cases h1024 : k < 1024
+  · have hkk : k ∈ Finset.Icc 150 1023 := by
+      rw [Finset.mem_Icc]
+      constructor <;> omega
+    have hmem : n ∈ Finset.Icc (2 * k) (3 * k - 1) := by
+      rw [Finset.mem_Icc]
+      constructor <;> omega
+    exact fin_c1 k hkk n hmem
+  · have hk1024 : 1024 ≤ k := by omega
+    -- C(n,k) ≤ L(n/3,n) ≤ 4^(n/3)·(n/2)^π < C(n,k)
+    have hcle : n.choose k ≤ L (n / 3) n := choose_le_L_third (by omega : 9 ≤ n) h2 h3 (by omega) hsmall
+    have hLn : (L (n / 3) n : ℝ) = (primorial (n / 3) : ℝ) * R n := by
+      have h2n : 2 * (n / 3) ≤ n := by omega
+      have hnn : n < (n / 3) * (n / 3) := by
+        have hx : 4 ≤ n / 3 := by omega
+        have hn3 : n < 3 * (n / 3) + 3 := by
+          have h := Nat.div_add_mod n 3
+          omega
+        have hx2 : 3 * (n / 3) + 3 ≤ (n / 3) * (n / 3) := by
+          have hx' : (4 : ℝ) ≤ ((n / 3 : ℕ) : ℝ) := by exact_mod_cast hx
+          have hfact : (((n / 3 : ℕ) : ℝ) * ((n / 3 : ℕ) : ℝ) - 3 * ((n / 3 : ℕ) : ℝ) - 3) =
+              (((n / 3 : ℕ) : ℝ) - 4) * (((n / 3 : ℕ) : ℝ) + 1) + 1 := by ring
+          have h1 : 0 ≤ (((n / 3 : ℕ) : ℝ) - 4) * (((n / 3 : ℕ) : ℝ) + 1) := by
+            have hx4 : 0 ≤ ((n / 3 : ℕ) : ℝ) - 4 := by linarith [hx']
+            have hx1 : 0 ≤ ((n / 3 : ℕ) : ℝ) + 1 := by linarith
+            positivity
+          nlinarith
+        omega
+      exact L_eq_primorial_mul_R h2n hnn
+    have hL : (L (n / 3) n : ℝ) ≤ (4 : ℝ) ^ (n / 3) * ((n : ℝ) / 2) ^ (Nat.primeCounting (Nat.sqrt n) : ℝ) := by
+      calc
+        (L (n / 3) n : ℝ) = (primorial (n / 3) : ℝ) * R n := hLn
+        _ ≤ (primorial (n / 3) : ℝ) * ((n : ℝ) / 2) ^ (Nat.primeCounting (Nat.sqrt n) : ℝ) := by
+            exact mul_le_mul_of_nonneg_left (R_le_pow_div_two (by omega : 2 ≤ n)) (by positivity)
+        _ ≤ (4 : ℝ) ^ (n / 3) * ((n : ℝ) / 2) ^ (Nat.primeCounting (Nat.sqrt n) : ℝ) := by
+            have h1 : (primorial (n / 3) : ℝ) ≤ (4 : ℝ) ^ (n / 3) := by
+              exact_mod_cast (primorial_le_four_pow (n / 3))
+            exact mul_le_mul_of_nonneg_right h1 (by positivity)
+    have hC : (4 : ℝ) ^ k / (2 * (k : ℝ) + 1) * ((n : ℝ) / (2 * (k : ℝ))) ^ k ≤
+        (n.choose k : ℝ) := choose_ge_pow_div (by omega : 1 ≤ k) h2
+    have hlt : (L (n / 3) n : ℝ) < (n.choose k : ℝ) := by
+      exact lt_of_le_of_lt hL (lt_of_lt_of_le (c1_ineq hk1024 h2 h3) hC)
+    have hltn : L (n / 3) n < n.choose k := by exact_mod_cast hlt
+    exact False.elim (lt_irrefl (n.choose k) (lt_of_le_of_lt hcle hltn))
+
+
+
+/-- Finite check: near region `2k ≤ n < 4k` for `64 ≤ k ≤ 149`. -/
+lemma fin_near :
+    ∀ k ∈ Finset.Icc 64 149, ∀ n ∈ Finset.Icc (2 * k) (4 * k - 1),
+      L k n < n.choose k := by
+  native_decide
+
+/-- Finite check: far region `16k ≤ n < k²` for `64 ≤ k ≤ 127`. -/
+lemma fin_far :
+    ∀ k ∈ Finset.Icc 64 127, ∀ n ∈ Finset.Icc (16 * k) (k * k - 1),
+      L k n < n.choose k := by
+  native_decide
 
 /-- **The remaining inequality** for `n ≥ 2k ≥ 4`: the product of the largest prime
 powers `p^(⌊log_p n⌋)` for primes `p ≤ k` is `< n.choose k`, except for `(n,k) = (10,5)`.
