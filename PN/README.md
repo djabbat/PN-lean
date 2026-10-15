@@ -15,6 +15,7 @@ Formalization of the statement `TASK_NEW_FORMULA_PRIMES.md` (the "formula for th
 | `Sylvester.lean` | Lean 4 — **theorem**: Sylvester (1892) — product of k consecutive integers > k has a prime factor > k (`Nat.sylvester`, `Nat.weak_sylvester`) | `lake env lean Sylvester.lean` |
 | `SylvesterIneq.lean` | Lean 4 — analytic infrastructure for the far-region estimate (concavity of `farG`, endpoint positivity E1/E2) | `lake env lean SylvesterIneq.lean` (~40 s) |
 | `SylvesterFull.lean` | Lean 4 — **theorem**: `Nat.sylvester_binomial` (Schur binomial form) + full reduction, **0 `sorry`** | `lake env lean SylvesterFull.lean` (~100 min) |
+| `CentrioleAging.lean` | Lean 4 — **original model verified**: mathematical core of the centriole geometric-aging model (OU with maternal transmission, α≈0.97): closed forms, variance accumulation, strict monotonicity, finite equilibria (0 errors, 0 warnings) | `lake env lean CentrioleAging.lean` (~1 min) |
 | `PN_pure.lean` | Lean 4 **without Mathlib** — self-contained definitions + value checks via `native_decide` | `lean PN_pure.lean` |
 
 ## Scientific contributions (theorems, NOT empirical)
@@ -70,6 +71,27 @@ Environment: Lean 4.35.0, Mathlib v4.35.0.
 **Honest framing:** the theorem is classical (1892/1929) — the contribution is a complete,
 machine-verified formal proof in Lean/mathlib4, which is absent from Mathlib. A mathlib4
 PR proposal is in `PR.md`.
+
+## Centriole geometric-aging model — formally verified mathematics
+
+The mathematical core of the quantitative model of centriole geometric aging
+(Tqemaladze, bioRxiv 2026) is machine-checked in `CentrioleAging.lean`:
+
+```
+L_{n+1} = α·L_n + (1-α)·L_0 + μ + ε_n ,   α ≈ 0.97
+```
+
+Proved in Lean (0 errors, 0 warnings):
+- **Closed forms**: `L_n = L_0 + μ(1-αⁿ)/(1-α)`, `Var(L_n) = σ²(1-(α²)ⁿ)/(1-α²)`.
+- **Persistence**: the variance is non-decreasing (`variance_mono`) — geometry does not
+  relax back to a population standard.
+- **Accumulation**: for `μ > 0` the length strictly increases with each division
+  (`length_drift_strict_mono`) — the geometry counts divisions.
+- **Finite equilibria**: `L_n → L_0 + μ/(1-α)`, `Var(L_n) → σ²/(1-α²)`
+  (`length_tendsto`, `variance_tendsto`).
+
+This is a first-of-kind artifact: the quantitative core of an aging model verified in a
+proof assistant.
 
 ## GapInterference (the prime gap interference model)
 
