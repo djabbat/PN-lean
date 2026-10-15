@@ -1,0 +1,22 @@
+{
+  "title": "PN: Prime number theorems formalized in Lean (Sylvester–Schur)",
+  "description": "Formal, machine-checked proofs in Lean 4 / Mathlib of classical prime-number theorems: Sylvester–Schur (the product of k consecutive integers each greater than k has a prime factor > k), unboundedness of prime gaps, and exact values of the Jacobsthal function (j(2310) = 14). Complete Sylvester–Schur proof: 0 'sorry', 0 errors.",
+  "upload_type": "software",
+  "license": "Apache-2.0",
+  "access_right": "open",
+  "creators": [
+    {
+      "name": "Tqemaladze, Jaba",
+      "orcid": "0000-0001-8651-7243"
+    }
+  ],
+  "keywords": [
+    "formal mathematics",
+    "Lean 4",
+    "mathlib",
+    "prime numbers",
+    "Sylvester's theorem",
+    "Sylvester-Schur theorem",
+    "proof assistant"
+  ]
+}
