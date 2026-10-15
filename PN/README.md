@@ -12,6 +12,9 @@ Formalization of the statement `TASK_NEW_FORMULA_PRIMES.md` (the "formula for th
 | `Jacobsthal2310.lean` | Lean 4 — **theorem**: the Jacobsthal function j(2310) = 14 (not in Mathlib) | `lake build Jacobsthal2310` |
 | `Jacobsthal.lean` | Lean 4 — **general Jacobsthal function** `Nat.jacobsthal` + bridge to `Nat.Coprime` | `lake build Jacobsthal` |
 | `Perfect.lean` | Lean 4 — **theorem**: Euclid–Euler (Mersenne prime → perfect number) + the σ-function | `lake build Perfect` |
+| `Sylvester.lean` | Lean 4 — **theorem**: Sylvester (1892) — product of k consecutive integers > k has a prime factor > k (`Nat.sylvester`, `Nat.weak_sylvester`) | `lake env lean Sylvester.lean` |
+| `SylvesterIneq.lean` | Lean 4 — analytic infrastructure for the far-region estimate (concavity of `farG`, endpoint positivity E1/E2) | `lake env lean SylvesterIneq.lean` (~40 s) |
+| `SylvesterFull.lean` | Lean 4 — **theorem**: `Nat.sylvester_binomial` (Schur binomial form) + full reduction, **0 `sorry`** | `lake env lean SylvesterFull.lean` (~100 min) |
 | `PN_pure.lean` | Lean 4 **without Mathlib** — self-contained definitions + value checks via `native_decide` | `lean PN_pure.lean` |
 
 ## Scientific contributions (theorems, NOT empirical)
@@ -25,6 +28,48 @@ Two results are proved in Lean and **are absent from Mathlib** — candidates fo
 Honest framing: these are **known** mathematical results (not new discoveries), but their **formal proofs** are absent from Mathlib — a real contribution to formal mathematics (material for a mathlib PR).
 
 The theorem files are written in **Mathlib style** (`namespace Nat`, English docstrings, minimal imports) — see `PR.md` (a ready pull-request description for mathlib4).
+
+## Sylvester–Schur theorem — fully formalized in Lean (no `sorry`)
+
+**Sylvester's theorem (1892), strengthened by Schur:** the product of `k` consecutive
+integers each greater than `k` is divisible by a prime greater than `k`.
+
+Fully machine-checked in this package — **0 `sorry`, 0 errors** in the complete build:
+
+```lean
+-- Sylvester.lean  (full form)
+theorem Nat.sylvester {a k : ℕ} (hak : k < a) (hk : 2 ≤ k) :
+    ∃ p : ℕ, k < p ∧ p.Prime ∧ p ∣ ∏ i ∈ Finset.range k, (a + i)
+
+-- SylvesterFull.lean  (binomial / Schur form)
+theorem Nat.sylvester_binomial {n k : ℕ} (hk : 2 ≤ k) (h2k : 2 * k ≤ n) :
+    ∃ p : ℕ, k < p ∧ p.Prime ∧ p ∣ n.choose k
+```
+
+### How the proof works (structure)
+- **Weak form** (`Sylvester.lean`, `Nat.weak_sylvester`): prime power `> k` divides the
+  product — FTA (`prod_factorization_pow_eq_self`) + upper bound `k^(π(k))` + `prod_gt_pow`.
+- **Reduction to the binomial** (`sylvester_binomial`): `∏ p ≤ k, p^⌊log_p n⌋ < n.choose k`
+  (Erdős–Kummer structure; `binom_le_prod_prime_pow`).
+- **Region split** (`binom_gt_prod_prime_pow`): `k ≤ √n` (elementary bounds), `k ≤ 63`
+  (finite check), and `k ≥ 64`, `k > √n` split into near / mid / far regions.
+- **Far region** `16k ≤ n < k²`, `k ≥ 256` (`SylvesterIneq.lean` + `far_ineq`): the log-gap
+  function `farG(K,u)` is **strictly concave** on `[16K, K²]` (`deriv2_farG_neg`), positive at
+  both endpoints (`farG_sixteenK_pos`, `farG_sqK_pos`), hence positive throughout
+  (`farG_pos`); `far_ineq` follows via `log_lt_log_iff` + `psi_sum_bound`. Finite head
+  `fin_far` covers `64 ≤ k ≤ 255` (`native_decide`).
+
+### Verification
+```bash
+cd lean
+lake env lean SylvesterIneq.lean     # ~40 s
+nohup timeout 7200 lake env lean SylvesterFull.lean &   # ~100 min (native_decide heads)
+```
+Environment: Lean 4.35.0, Mathlib v4.35.0.
+
+**Honest framing:** the theorem is classical (1892/1929) — the contribution is a complete,
+machine-verified formal proof in Lean/mathlib4, which is absent from Mathlib. A mathlib4
+PR proposal is in `PR.md`.
 
 ## GapInterference (the prime gap interference model)
 
