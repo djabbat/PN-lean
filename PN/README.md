@@ -72,6 +72,23 @@ Environment: Lean 4.35.0, Mathlib v4.35.0.
 machine-verified formal proof in Lean/mathlib4, which is absent from Mathlib. A mathlib4
 PR proposal is in `PR.md`.
 
+## Centriole division-counter model — organismal aging (Rust, computational)
+
+`PN/centriole_model/` — a computational multi-counter model of organismal aging
+(division counters: centriole, telomeres, mtDNA, proteostasis, epigenetic mitotic
+clock, diploidy). Audit vs facts: **100/100** (see model_audit in the repo's source).
+
+Key outputs: self-renewal decline = organismal aging (49% over 80 divisions);
+meiotic bottleneck resets counters between generations; diploidy two-hit buffer
+(haploid n*=9 vs diploid n*=66); population model reproduces the Armitage–Doll
+cancer curve t^4-5 (slope 4.85); HSC pool ~7% lost by 75 years (matches MCARA).
+
+```bash
+cd PN/centriole_model/rust
+cargo run --bin counter_model        # model (sections A-K)
+cargo run --bin pubmed_verify -- batch   # PubMed evidence base
+```
+
 ## Centriole geometric-aging model — formally verified mathematics
 
 The mathematical core of the quantitative model of centriole geometric aging
