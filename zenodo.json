@@ -1,6 +1,6 @@
 {
-  "title": "PN: Prime number theorems formalized in Lean (Sylvester–Schur)",
-  "description": "Formal, machine-checked proofs in Lean 4 / Mathlib of classical prime-number theorems: Sylvester–Schur (the product of k consecutive integers each greater than k has a prime factor > k), unboundedness of prime gaps, and exact values of the Jacobsthal function (j(2310) = 14). Complete Sylvester–Schur proof: 0 'sorry', 0 errors.",
+  "title": "PN: Prime number theorems formalized in Lean (Sylvester–Schur, prime gaps, Jacobsthal)",
+  "description": "Formal, machine-checked proofs in Lean 4 / Mathlib: (1) classical prime-number theorems — Sylvester–Schur (complete, 0 'sorry', 0 errors), unboundedness of prime gaps, Jacobsthal function values (j(2310) = 14); (2) the mathematically verified core of an original quantitative model of centriole geometric aging (Ornstein–Uhlenbeck with maternal transmission, alpha ≈ 0.97): closed forms, variance accumulation, strict monotonicity, finite equilibria (CentrioleAging.lean).",
   "upload_type": "software",
   "license": "Apache-2.0",
   "access_right": "open",
@@ -17,6 +17,17 @@
     "prime numbers",
     "Sylvester's theorem",
     "Sylvester-Schur theorem",
-    "proof assistant"
+    "proof assistant",
+    "aging model",
+    "centriole",
+    "Ornstein-Uhlenbeck",
+    "formal verification"
+  ],
+  "related_identifiers": [
+    {
+      "relation": "isSupplementTo",
+      "identifier": "PREPRINT_DOI_PLACEHOLDER",
+      "resource_type": "preprint"
+    }
   ]
 }
