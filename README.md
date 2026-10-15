@@ -1,6 +1,6 @@
 # PN — prime-number theorems formalized in Lean 4
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23404818.svg)](https://doi.org/10.5281/zenodo.23404818)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23405622.svg)](https://doi.org/10.5281/zenodo.23405622)
 
 Formal, machine-checked proofs (Lean 4 + Mathlib) of classical prime-number theorems:
 
