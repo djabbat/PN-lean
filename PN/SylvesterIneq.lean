@@ -4,6 +4,7 @@ import Mathlib.Analysis.SpecialFunctions.Log.Deriv
 import Mathlib.Analysis.SpecialFunctions.Sqrt
 import Mathlib.NumberTheory.PrimeCounting
 import Mathlib.NumberTheory.Chebyshev
+set_option maxHeartbeats 800000
 
 open scoped BigOperators
 open scoped Topology
@@ -741,7 +742,7 @@ lemma midM_sixteenK_pos {K : ℝ} (hK256 : 256 ≤ K) : 0 < midM K (16 * K) := b
 
 /-- `2/5 ≤ log(3/2)`. -/
 lemma two_fifths_le_log_three_half : (2 : ℝ) / 5 ≤ Real.log (3 / 2) := by
-  have h := Real.le_log_one_add_of_nonneg (by norm_num : (0 : ℝ) ≤ 1 / 2)
+  have h := Real.le_log_one_add_of_nonneg (by norm_num : (0 : ℝ) ≤ (1 : ℝ) / 2)
   norm_num at h
   exact h
 
@@ -1033,3 +1034,841 @@ lemma concaveOn_c1F {K : ℝ} (hK256 : 256 ≤ K) :
     dsimp [c1F, midM]
     ring
   rwa [hfun] at hc_sum
+
+/-! ### Far-region function `farG` and its analysis
+
+The far region is `16k ≤ n < k²` with `k ≥ 192` (finite head covers `64 ≤ k < 192`).
+The log-inequality we need is
+`k·ln4 + (√n + n^{1/3} + n^{1/5})·ln4 + n^{1/4}·ln n + (2/3)n^{1/6}·ln n + (2/5)n^{1/10}·ln n < k·ln(n/k)`.
+Define `farG(K,u) = K·ln(u/(4K)) − ln4·(√u + u^{1/3} + u^{1/5}) − u^{1/4}ln u − (2/3)u^{1/6}ln u − (2/5)u^{1/10}ln u`.
+Positive values of `farG` on `[16K, K²]` give the inequality.
+-/
+
+/-- `log 2 ≤ 3/4`. -/
+lemma log_two_le_three_fourths : Real.log 2 ≤ (3 : ℝ) / 4 := by
+  have h1 : (1 : ℝ) + 1 / 8 ≤ Real.exp (1 / 8) := by
+    have h := Real.add_one_le_exp (1 / 8)
+    linarith
+  have h3 : (9 : ℝ) / 8 ≤ Real.exp (1 / 8) := by
+    norm_num at h1 ⊢
+    exact h1
+  have h4' : ((9 : ℝ) / 8) ^ 6 ≤ Real.exp (1 / 8) ^ 6 := by
+    exact pow_le_pow_left₀ (by norm_num : (0 : ℝ) ≤ (9 : ℝ) / 8) h3 6
+  have h4 : Real.exp ((3 : ℝ) / 4) ≥ ((9 : ℝ) / 8) ^ 6 := by
+    have h6 : (3 : ℝ) / 4 = (6 : ℕ) * (1 / 8) := by norm_num
+    rw [h6, Real.exp_nat_mul]
+    exact h4'
+  have hgt : ((9 : ℝ) / 8) ^ 6 > (2 : ℝ) := by norm_num
+  have h2le : (2 : ℝ) ≤ Real.exp ((3 : ℝ) / 4) := le_trans (le_of_lt hgt) h4
+  have hlog : Real.log 2 ≤ Real.log (Real.exp ((3 : ℝ) / 4)) := by
+    exact Real.log_le_log (by norm_num : (0 : ℝ) < 2) h2le
+  simpa using hlog
+
+/-- `log 4 ≤ 3/2`. -/
+lemma log_four_le_three_halves : Real.log 4 ≤ (3 : ℝ) / 2 := by
+  rw [show (4 : ℝ) = 2 ^ 2 by norm_num, Real.log_pow]
+  nlinarith [log_two_le_three_fourths]
+
+/-- `√x ≤ x/8` for `x ≥ 64`. -/
+lemma sqrt_le_eighth_self {x : ℝ} (hx : 64 ≤ x) : Real.sqrt x ≤ x / 8 := by
+  have hxpos : 0 < x := by linarith
+  have h8 : 8 ≤ Real.sqrt x := by
+    have h' : Real.sqrt 64 ≤ Real.sqrt x := Real.sqrt_le_sqrt hx
+    norm_num at h'
+    exact h'
+  have hsq : Real.sqrt x ^ 2 = x := Real.sq_sqrt hxpos.le
+  nlinarith
+
+/-- `c ≤ x^(1/3)` whenever `c³ ≤ x` and `0 ≤ c`. -/
+lemma rpow_inv_three_ge {x c : ℝ} (hx : c ^ 3 ≤ x) (hc : 0 ≤ c) :
+    c ≤ x ^ ((3 : ℝ)⁻¹) := by
+  have hpow := Real.rpow_le_rpow (by positivity : (0 : ℝ) ≤ c ^ 3) hx (by norm_num : (0 : ℝ) ≤ (3 : ℝ)⁻¹)
+  have hc3 : (c ^ 3) ^ ((3 : ℝ)⁻¹) = c := by
+    rw [← Real.rpow_natCast, ← Real.rpow_mul hc]
+    norm_num
+  rwa [hc3] at hpow
+
+/-- `x^(2/3) ≤ x/5` for `x ≥ 125`. -/
+lemma rpow_two_thirds_le_div_five {x : ℝ} (hx : 125 ≤ x) : x ^ ((2 : ℝ) / 3) ≤ x / 5 := by
+  have hxpos : 0 < x := by linarith
+  have h5 : (5 : ℝ) ≤ x ^ ((3 : ℝ)⁻¹) := by
+    have hc : (5 : ℝ) ^ 3 = 125 := by norm_num
+    exact rpow_inv_three_ge (x := x) (c := 5) (by rw [hc]; exact hx) (by norm_num)
+  have hx23 : x ^ ((2 : ℝ) / 3) = x / x ^ ((3 : ℝ)⁻¹) := by
+    have h : (2 : ℝ) / 3 = 1 - (3 : ℝ)⁻¹ := by norm_num
+    rw [h, Real.rpow_sub hxpos, Real.rpow_one]
+  rw [hx23]
+  rw [div_le_div_iff₀ (by positivity : 0 < x ^ ((3 : ℝ)⁻¹)) (by norm_num : (0 : ℝ) < 5)]
+  nlinarith [h5]
+
+/-- `log x ≤ (2/3)√x` for `x ≥ 128`. -/
+lemma far_log_le_two_thirds_sqrt {x : ℝ} (hx : 128 ≤ x) : Real.log x ≤ (2 / 3 : ℝ) * Real.sqrt x := by
+  by_cases h256 : x ≥ 256
+  · exact log_le_two_thirds_sqrt h256
+  · -- 128 ≤ x < 256 : ln x ≤ ln 256 = 8 ln 2 ≤ 8·(5/6) = 20/3 ≤ (2/3)·√x
+    have hxlt : x < 256 := by linarith
+    have hlog : Real.log x ≤ (20 : ℝ) / 3 := by
+      have hle1 : Real.log x ≤ Real.log 256 := Real.log_le_log (by linarith : (0 : ℝ) < x) (le_of_lt hxlt)
+      have h256 : Real.log 256 ≤ (20 : ℝ) / 3 := by
+        rw [show (256 : ℝ) = (2 : ℝ) ^ (8 : ℕ) by norm_num, Real.log_pow]
+        nlinarith [log_two_le_five_sixths]
+      exact hle1.trans h256
+    have hsqrt : (20 : ℝ) / 3 ≤ (2 / 3 : ℝ) * Real.sqrt x := by
+      have hxr : Real.sqrt 128 ≤ Real.sqrt x := Real.sqrt_le_sqrt hx
+      have h10 : (10 : ℝ) ≤ Real.sqrt 128 := by
+        have : Real.sqrt 100 ≤ Real.sqrt 128 := Real.sqrt_le_sqrt (by norm_num : (100 : ℝ) ≤ 128)
+        norm_num at this
+        exact this
+      nlinarith
+    linarith
+
+/-- The far-region log-gap function:
+`farG(K,u) = K·log(u/(4K)) − log4·(√u + u^{1/3} + u^{1/5}) − u^{1/4}log u − (2/3)u^{1/6}log u − (2/5)u^{1/10}log u`. -/
+noncomputable def farG (K u : ℝ) : ℝ :=
+  K * Real.log (u / (4 * K))
+    - Real.log 4 * (Real.sqrt u + u ^ ((3 : ℝ)⁻¹) + u ^ ((5 : ℝ)⁻¹))
+    - u ^ ((4 : ℝ)⁻¹) * Real.log u
+    - (2 / 3) * (u ^ ((6 : ℝ)⁻¹) * Real.log u)
+    - (2 / 5) * (u ^ ((10 : ℝ)⁻¹) * Real.log u)
+
+/-- First derivative of `farG` (for `u > 0`, `K > 0`). -/
+noncomputable def farD (K u : ℝ) : ℝ :=
+  K / u
+    - Real.log 4 * (1 / (2 * Real.sqrt u) + ((3 : ℝ)⁻¹) * u ^ (((3 : ℝ)⁻¹) - 1)
+        + ((5 : ℝ)⁻¹) * u ^ (((5 : ℝ)⁻¹) - 1))
+    - (((4 : ℝ)⁻¹) * u ^ (((4 : ℝ)⁻¹) - 1) * Real.log u + u ^ (((4 : ℝ)⁻¹) - 1))
+    - (2 / 3) * (((6 : ℝ)⁻¹) * u ^ (((6 : ℝ)⁻¹) - 1) * Real.log u + u ^ (((6 : ℝ)⁻¹) - 1))
+    - (2 / 5) * (((10 : ℝ)⁻¹) * u ^ (((10 : ℝ)⁻¹) - 1) * Real.log u + u ^ (((10 : ℝ)⁻¹) - 1))
+
+/-- `deriv (farG K ·) u = farD K u` for `u > 0`, `K > 0`. -/
+lemma deriv_farG_eq_farD {K u : ℝ} (hK : 0 < K) (hu : 0 < u) :
+    deriv (fun x : ℝ => farG K x) u = farD K u := by
+  have hA : HasDerivAt (fun x : ℝ => K * Real.log (x / (4 * K))) (K / u) u := by
+    have h1 : HasDerivAt (fun x : ℝ => x / (4 * K)) (1 / (4 * K)) u :=
+      (hasDerivAt_id u).div_const (4 * K)
+    have h2 : HasDerivAt (fun x : ℝ => Real.log (x / (4 * K))) u⁻¹ u := by
+      have hl : HasDerivAt (fun x : ℝ => Real.log (x / (4 * K)))
+          (1 / (4 * K) / (u / (4 * K))) u := h1.log (by positivity)
+      have hv : K⁻¹ * 4⁻¹ / (u / (4 * K)) = u⁻¹ := by
+        field_simp [hK.ne', hu.ne']
+      simpa [hv] using hl
+    exact h2.const_mul K
+  have hs : HasDerivAt (fun x : ℝ => Real.sqrt x) (1 / (2 * Real.sqrt u)) u :=
+    Real.hasDerivAt_sqrt (ne_of_gt hu)
+  have hR3 : HasDerivAt (fun x : ℝ => x ^ ((3 : ℝ)⁻¹))
+      (((3 : ℝ)⁻¹) * u ^ (((3 : ℝ)⁻¹) - 1)) u :=
+    Real.hasDerivAt_rpow_const (x := u) (p := (3 : ℝ)⁻¹) (Or.inl (ne_of_gt hu))
+  have hR5 : HasDerivAt (fun x : ℝ => x ^ ((5 : ℝ)⁻¹))
+      (((5 : ℝ)⁻¹) * u ^ (((5 : ℝ)⁻¹) - 1)) u :=
+    Real.hasDerivAt_rpow_const (x := u) (p := (5 : ℝ)⁻¹) (Or.inl (ne_of_gt hu))
+  have hB : HasDerivAt (fun x : ℝ => Real.sqrt x + x ^ ((3 : ℝ)⁻¹) + x ^ ((5 : ℝ)⁻¹))
+      (1 / (2 * Real.sqrt u) + ((3 : ℝ)⁻¹) * u ^ (((3 : ℝ)⁻¹) - 1)
+        + ((5 : ℝ)⁻¹) * u ^ (((5 : ℝ)⁻¹) - 1)) u :=
+    (hs.add hR3).add hR5
+  have hB4 : HasDerivAt (fun x : ℝ => Real.log 4 * (Real.sqrt x + x ^ ((3 : ℝ)⁻¹) + x ^ ((5 : ℝ)⁻¹)))
+      (Real.log 4 * (1 / (2 * Real.sqrt u) + ((3 : ℝ)⁻¹) * u ^ (((3 : ℝ)⁻¹) - 1)
+        + ((5 : ℝ)⁻¹) * u ^ (((5 : ℝ)⁻¹) - 1))) u :=
+    hB.const_mul (Real.log 4)
+  have hL4 : HasDerivAt (fun x : ℝ => x ^ ((4 : ℝ)⁻¹) * Real.log x)
+      (((4 : ℝ)⁻¹) * u ^ (((4 : ℝ)⁻¹) - 1) * Real.log u + u ^ (((4 : ℝ)⁻¹) - 1)) u := by
+    have hr := Real.hasDerivAt_rpow_const (x := u) (p := (4 : ℝ)⁻¹) (Or.inl (ne_of_gt hu))
+    have hl : HasDerivAt (fun x : ℝ => Real.log x) u⁻¹ u := Real.hasDerivAt_log (ne_of_gt hu)
+    have hd := hr.mul hl
+    have hval : ((4 : ℝ)⁻¹) * u ^ (((4 : ℝ)⁻¹) - 1) * Real.log u + u ^ ((4 : ℝ)⁻¹) * u⁻¹
+        = ((4 : ℝ)⁻¹) * u ^ (((4 : ℝ)⁻¹) - 1) * Real.log u + u ^ (((4 : ℝ)⁻¹) - 1) := by
+      have hu4 : u ^ ((4 : ℝ)⁻¹) = u ^ (((4 : ℝ)⁻¹) - 1) * u := by
+        calc
+          u ^ ((4 : ℝ)⁻¹) = u ^ ((((4 : ℝ)⁻¹) - 1) + 1) := by congr 1; ring
+          _ = u ^ (((4 : ℝ)⁻¹) - 1) * u ^ (1 : ℝ) := by rw [Real.rpow_add hu]
+          _ = u ^ (((4 : ℝ)⁻¹) - 1) * u := by rw [Real.rpow_one]
+      rw [hu4]
+      field_simp [hu.ne']
+    rw [hval] at hd
+    exact hd
+  have hL6 : HasDerivAt (fun x : ℝ => (2 / 3) * (x ^ ((6 : ℝ)⁻¹) * Real.log x))
+      ((2 / 3) * (((6 : ℝ)⁻¹) * u ^ (((6 : ℝ)⁻¹) - 1) * Real.log u + u ^ (((6 : ℝ)⁻¹) - 1))) u := by
+    have hr := Real.hasDerivAt_rpow_const (x := u) (p := (6 : ℝ)⁻¹) (Or.inl (ne_of_gt hu))
+    have hl : HasDerivAt (fun x : ℝ => Real.log x) u⁻¹ u := Real.hasDerivAt_log (ne_of_gt hu)
+    have hd := hr.mul hl
+    have hval : ((6 : ℝ)⁻¹) * u ^ (((6 : ℝ)⁻¹) - 1) * Real.log u + u ^ ((6 : ℝ)⁻¹) * u⁻¹
+        = ((6 : ℝ)⁻¹) * u ^ (((6 : ℝ)⁻¹) - 1) * Real.log u + u ^ (((6 : ℝ)⁻¹) - 1) := by
+      have hu6 : u ^ ((6 : ℝ)⁻¹) = u ^ (((6 : ℝ)⁻¹) - 1) * u := by
+        calc
+          u ^ ((6 : ℝ)⁻¹) = u ^ ((((6 : ℝ)⁻¹) - 1) + 1) := by congr 1; ring
+          _ = u ^ (((6 : ℝ)⁻¹) - 1) * u ^ (1 : ℝ) := by rw [Real.rpow_add hu]
+          _ = u ^ (((6 : ℝ)⁻¹) - 1) * u := by rw [Real.rpow_one]
+      rw [hu6]
+      field_simp [hu.ne']
+    rw [hval] at hd
+    exact hd.const_mul (2 / 3)
+  have hL10 : HasDerivAt (fun x : ℝ => (2 / 5) * (x ^ ((10 : ℝ)⁻¹) * Real.log x))
+      ((2 / 5) * (((10 : ℝ)⁻¹) * u ^ (((10 : ℝ)⁻¹) - 1) * Real.log u + u ^ (((10 : ℝ)⁻¹) - 1))) u := by
+    have hr := Real.hasDerivAt_rpow_const (x := u) (p := (10 : ℝ)⁻¹) (Or.inl (ne_of_gt hu))
+    have hl : HasDerivAt (fun x : ℝ => Real.log x) u⁻¹ u := Real.hasDerivAt_log (ne_of_gt hu)
+    have hd := hr.mul hl
+    have hval : ((10 : ℝ)⁻¹) * u ^ (((10 : ℝ)⁻¹) - 1) * Real.log u + u ^ ((10 : ℝ)⁻¹) * u⁻¹
+        = ((10 : ℝ)⁻¹) * u ^ (((10 : ℝ)⁻¹) - 1) * Real.log u + u ^ (((10 : ℝ)⁻¹) - 1) := by
+      have hu10 : u ^ ((10 : ℝ)⁻¹) = u ^ (((10 : ℝ)⁻¹) - 1) * u := by
+        calc
+          u ^ ((10 : ℝ)⁻¹) = u ^ ((((10 : ℝ)⁻¹) - 1) + 1) := by congr 1; ring
+          _ = u ^ (((10 : ℝ)⁻¹) - 1) * u ^ (1 : ℝ) := by rw [Real.rpow_add hu]
+          _ = u ^ (((10 : ℝ)⁻¹) - 1) * u := by rw [Real.rpow_one]
+      rw [hu10]
+      field_simp [hu.ne']
+    rw [hval] at hd
+    exact hd.const_mul (2 / 5)
+  have hmain : HasDerivAt (fun x : ℝ => farG K x)
+      (K / u
+        - Real.log 4 * (1 / (2 * Real.sqrt u) + ((3 : ℝ)⁻¹) * u ^ (((3 : ℝ)⁻¹) - 1)
+            + ((5 : ℝ)⁻¹) * u ^ (((5 : ℝ)⁻¹) - 1))
+        - (((4 : ℝ)⁻¹) * u ^ (((4 : ℝ)⁻¹) - 1) * Real.log u + u ^ (((4 : ℝ)⁻¹) - 1))
+        - (2 / 3) * (((6 : ℝ)⁻¹) * u ^ (((6 : ℝ)⁻¹) - 1) * Real.log u + u ^ (((6 : ℝ)⁻¹) - 1))
+        - (2 / 5) * (((10 : ℝ)⁻¹) * u ^ (((10 : ℝ)⁻¹) - 1) * Real.log u + u ^ (((10 : ℝ)⁻¹) - 1))) u := by
+    dsimp [farG]
+    exact ((((hA.sub hB4).sub hL4).sub hL6).sub hL10)
+  simpa [farD] using hmain.deriv
+
+/-- Second derivative of `farG` (for `u > 0`, `K > 0`). -/
+noncomputable def farD2 (K u : ℝ) : ℝ :=
+  - K / u ^ 2
+    + Real.log 4 * (((1 : ℝ) / 4) * u ^ (-((3 : ℝ) / 2)) + ((2 : ℝ) / 9) * u ^ (-((5 : ℝ) / 3))
+        + ((4 : ℝ) / 25) * u ^ (-((9 : ℝ) / 5)))
+    + ((3 : ℝ) / 16) * u ^ (-((7 : ℝ) / 4)) * Real.log u + (1 / 2) * u ^ (-((7 : ℝ) / 4))
+    + ((5 : ℝ) / 54) * u ^ (-((11 : ℝ) / 6)) * Real.log u + ((4 : ℝ) / 9) * u ^ (-((11 : ℝ) / 6))
+    + ((9 : ℝ) / 250) * u ^ (-((19 : ℝ) / 10)) * Real.log u + ((8 : ℝ) / 25) * u ^ (-((19 : ℝ) / 10))
+
+/-- `HasDerivAt` of `x ↦ x^p · log x`. -/
+lemma hasDerivAt_rpow_mul_log {u p : ℝ} (hu : 0 < u) :
+    HasDerivAt (fun x : ℝ => x ^ p * Real.log x)
+      (p * u ^ (p - 1) * Real.log u + u ^ (p - 1)) u := by
+  have hr := Real.hasDerivAt_rpow_const (x := u) (p := p) (Or.inl (ne_of_gt hu))
+  have hl : HasDerivAt (fun x : ℝ => Real.log x) u⁻¹ u := Real.hasDerivAt_log (ne_of_gt hu)
+  have hd := hr.mul hl
+  have hval : p * u ^ (p - 1) * Real.log u + u ^ p * u⁻¹
+      = p * u ^ (p - 1) * Real.log u + u ^ (p - 1) := by
+    have hu' : u ^ p = u ^ (p - 1) * u := by
+      calc
+        u ^ p = u ^ ((p - 1) + 1) := by congr 1; ring
+        _ = u ^ (p - 1) * u ^ (1 : ℝ) := by rw [Real.rpow_add hu]
+        _ = u ^ (p - 1) * u := by rw [Real.rpow_one]
+    rw [hu']
+    field_simp [ne_of_gt hu]
+  rwa [hval] at hd
+
+/-- `HasDerivAt` of `x ↦ 1/(2√x)`. -/
+lemma hasDerivAt_inv_two_sqrt {u : ℝ} (hu : 0 < u) :
+    HasDerivAt (fun x : ℝ => 1 / (2 * Real.sqrt x)) (-((1 : ℝ) / 4) * u ^ (-((3 : ℝ) / 2))) u := by
+  have hrr : (fun x : ℝ => 1 / (2 * Real.sqrt x)) =ᶠ[𝓝 u]
+      (fun x : ℝ => (1 / 2) * x ^ (-((1 : ℝ) / 2))) := by
+    filter_upwards [isOpen_Ioi.mem_nhds hu] with x hx
+    have hx0 : (0 : ℝ) < x := by simpa using hx
+    rw [Real.sqrt_eq_rpow]
+    calc
+      1 / (2 * x ^ ((1 : ℝ) / 2)) = (1 / 2) * (x ^ ((1 : ℝ) / 2))⁻¹ := by
+        field_simp [ne_of_gt hx0]
+      _ = (1 / 2) * x ^ (-((1 : ℝ) / 2)) := by
+        rw [Real.rpow_neg hx0.le]
+  have hd : HasDerivAt (fun x : ℝ => (1 / 2) * x ^ (-((1 : ℝ) / 2)))
+      (-((1 : ℝ) / 4) * u ^ (-((3 : ℝ) / 2))) u := by
+    have hr := Real.hasDerivAt_rpow_const (x := u) (p := -((1 : ℝ) / 2)) (Or.inl (ne_of_gt hu))
+    convert hr.const_mul (1 / 2) using 1
+    · have h : -((1 : ℝ) / 2) - 1 = -((3 : ℝ) / 2) := by norm_num
+      rw [h]
+      ring_nf
+  exact (hrr.hasDerivAt_iff).mpr hd
+
+/-- Second derivative of `farG`: `deriv^[2] (farG K ·) u = farD2 K u`. -/
+lemma deriv2_farG {K u : ℝ} (hK : 0 < K) (hu : 0 < u) :
+    deriv^[2] (fun x : ℝ => farG K x) u = farD2 K u := by
+  have hIoi : Set.Ioi (0 : ℝ) ∈ 𝓝 u := isOpen_Ioi.mem_nhds hu
+  have hlocal : (fun x : ℝ => deriv (fun y : ℝ => farG K y) x) =ᶠ[𝓝 u]
+      (fun x : ℝ => farD K x) := by
+    filter_upwards [hIoi] with x hx
+    exact deriv_farG_eq_farD hK hx
+  have hdeq : deriv (fun x : ℝ => deriv (fun y : ℝ => farG K y) x) u
+      = deriv (fun x : ℝ => farD K x) u := hlocal.deriv_eq
+  have hsq : Real.sqrt u ^ 2 = u := Real.sq_sqrt hu.le
+  have hD1 : HasDerivAt (fun x : ℝ => K / x) (-K / u ^ 2) u := by
+    have hk : HasDerivAt (fun x : ℝ => K) (0 : ℝ) u := hasDerivAt_const u K
+    have hid : HasDerivAt (fun x : ℝ => x) (1 : ℝ) u := hasDerivAt_id u
+    have hdiv : HasDerivAt (fun x : ℝ => K / x) ((0 * u - K * 1) / u ^ 2) u :=
+      hk.div hid (ne_of_gt hu)
+    have hv : (0 * u - K * 1) / u ^ 2 = -K / u ^ 2 := by
+      field_simp [hu.ne']
+      ring
+    rw [hv] at hdiv
+    exact hdiv
+  have hS : HasDerivAt (fun x : ℝ => 1 / (2 * Real.sqrt x)) (-((1 : ℝ) / 4) * u ^ (-((3 : ℝ) / 2))) u :=
+    hasDerivAt_inv_two_sqrt hu
+  have hR3 : HasDerivAt (fun x : ℝ => ((3 : ℝ)⁻¹) * x ^ (((3 : ℝ)⁻¹) - 1))
+      (-((2 : ℝ) / 9) * u ^ (-((5 : ℝ) / 3))) u := by
+    have hr := Real.hasDerivAt_rpow_const (x := u) (p := ((3 : ℝ)⁻¹) - 1) (Or.inl (ne_of_gt hu))
+    convert hr.const_mul ((3 : ℝ)⁻¹) using 1
+    · have he : ((3 : ℝ)⁻¹) - 1 - 1 = -((5 : ℝ) / 3) := by norm_num
+      rw [he]
+      norm_num
+      ring
+  have hR5 : HasDerivAt (fun x : ℝ => ((5 : ℝ)⁻¹) * x ^ (((5 : ℝ)⁻¹) - 1))
+      (-((4 : ℝ) / 25) * u ^ (-((9 : ℝ) / 5))) u := by
+    have hr := Real.hasDerivAt_rpow_const (x := u) (p := ((5 : ℝ)⁻¹) - 1) (Or.inl (ne_of_gt hu))
+    convert hr.const_mul ((5 : ℝ)⁻¹) using 1
+    · have he : ((5 : ℝ)⁻¹) - 1 - 1 = -((9 : ℝ) / 5) := by norm_num
+      rw [he]
+      norm_num
+      ring
+  have hC1 : HasDerivAt (fun x : ℝ => (1 / (2 * Real.sqrt x)) + ((3 : ℝ)⁻¹) * x ^ (((3 : ℝ)⁻¹) - 1)
+        + ((5 : ℝ)⁻¹) * x ^ (((5 : ℝ)⁻¹) - 1))
+      (-((1 : ℝ) / 4) * u ^ (-((3 : ℝ) / 2)) + (-((2 : ℝ) / 9)) * u ^ (-((5 : ℝ) / 3))
+        + (-((4 : ℝ) / 25)) * u ^ (-((9 : ℝ) / 5))) u :=
+    (hS.add hR3).add hR5
+  have hC2 : HasDerivAt (fun x : ℝ => Real.log 4 * (1 / (2 * Real.sqrt x) + ((3 : ℝ)⁻¹) * x ^ (((3 : ℝ)⁻¹) - 1)
+        + ((5 : ℝ)⁻¹) * x ^ (((5 : ℝ)⁻¹) - 1)))
+      (Real.log 4 * (-((1 : ℝ) / 4) * u ^ (-((3 : ℝ) / 2)) + (-((2 : ℝ) / 9)) * u ^ (-((5 : ℝ) / 3))
+        + (-((4 : ℝ) / 25)) * u ^ (-((9 : ℝ) / 5)))) u :=
+    hC1.const_mul (Real.log 4)
+  have hL4' : HasDerivAt (fun x : ℝ => ((4 : ℝ)⁻¹) * x ^ (((4 : ℝ)⁻¹) - 1) * Real.log x + x ^ (((4 : ℝ)⁻¹) - 1))
+      (-((3 : ℝ) / 16) * u ^ (-((7 : ℝ) / 4)) * Real.log u - (1 / 2) * u ^ (-((7 : ℝ) / 4))) u := by
+    have h1 := hasDerivAt_rpow_mul_log (u := u) (p := ((4 : ℝ)⁻¹) - 1) hu
+    have h1c : HasDerivAt (fun x : ℝ => ((4 : ℝ)⁻¹) * (x ^ (((4 : ℝ)⁻¹) - 1) * Real.log x))
+        (((4 : ℝ)⁻¹) * ((((4 : ℝ)⁻¹) - 1) * u ^ (((4 : ℝ)⁻¹) - 1 - 1) * Real.log u + u ^ (((4 : ℝ)⁻¹) - 1 - 1))) u :=
+      h1.const_mul ((4 : ℝ)⁻¹)
+    have h2 : HasDerivAt (fun x : ℝ => x ^ (((4 : ℝ)⁻¹) - 1))
+        ((((4 : ℝ)⁻¹) - 1) * u ^ (((4 : ℝ)⁻¹) - 1 - 1)) u :=
+      Real.hasDerivAt_rpow_const (x := u) (p := ((4 : ℝ)⁻¹) - 1) (Or.inl (ne_of_gt hu))
+    have hsum : HasDerivAt (fun x : ℝ => ((4 : ℝ)⁻¹) * (x ^ (((4 : ℝ)⁻¹) - 1) * Real.log x) + x ^ (((4 : ℝ)⁻¹) - 1))
+        (((4 : ℝ)⁻¹) * ((((4 : ℝ)⁻¹) - 1) * u ^ (((4 : ℝ)⁻¹) - 1 - 1) * Real.log u + u ^ (((4 : ℝ)⁻¹) - 1 - 1))
+          + (((4 : ℝ)⁻¹) - 1) * u ^ (((4 : ℝ)⁻¹) - 1 - 1)) u :=
+      h1c.add h2
+    convert hsum using 1
+    · funext x
+      ring
+    · have he : ((4 : ℝ)⁻¹) - 1 - 1 = -((7 : ℝ) / 4) := by norm_num
+      rw [he]
+      norm_num
+      ring
+  have hL6' : HasDerivAt (fun x : ℝ => (2 / 3) * (((6 : ℝ)⁻¹) * x ^ (((6 : ℝ)⁻¹) - 1) * Real.log x + x ^ (((6 : ℝ)⁻¹) - 1)))
+      (-((5 : ℝ) / 54) * u ^ (-((11 : ℝ) / 6)) * Real.log u - ((4 : ℝ) / 9) * u ^ (-((11 : ℝ) / 6))) u := by
+    have h1 := hasDerivAt_rpow_mul_log (u := u) (p := ((6 : ℝ)⁻¹) - 1) hu
+    have h1c : HasDerivAt (fun x : ℝ => ((6 : ℝ)⁻¹) * (x ^ (((6 : ℝ)⁻¹) - 1) * Real.log x))
+        (((6 : ℝ)⁻¹) * ((((6 : ℝ)⁻¹) - 1) * u ^ (((6 : ℝ)⁻¹) - 1 - 1) * Real.log u + u ^ (((6 : ℝ)⁻¹) - 1 - 1))) u :=
+      h1.const_mul ((6 : ℝ)⁻¹)
+    have h2 : HasDerivAt (fun x : ℝ => x ^ (((6 : ℝ)⁻¹) - 1))
+        ((((6 : ℝ)⁻¹) - 1) * u ^ (((6 : ℝ)⁻¹) - 1 - 1)) u :=
+      Real.hasDerivAt_rpow_const (x := u) (p := ((6 : ℝ)⁻¹) - 1) (Or.inl (ne_of_gt hu))
+    have hsum : HasDerivAt (fun x : ℝ => ((6 : ℝ)⁻¹) * (x ^ (((6 : ℝ)⁻¹) - 1) * Real.log x) + x ^ (((6 : ℝ)⁻¹) - 1))
+        (((6 : ℝ)⁻¹) * ((((6 : ℝ)⁻¹) - 1) * u ^ (((6 : ℝ)⁻¹) - 1 - 1) * Real.log u + u ^ (((6 : ℝ)⁻¹) - 1 - 1))
+          + (((6 : ℝ)⁻¹) - 1) * u ^ (((6 : ℝ)⁻¹) - 1 - 1)) u :=
+      h1c.add h2
+    convert (hsum.const_mul (2 / 3)) using 1
+    · funext x
+      ring
+    · have he : ((6 : ℝ)⁻¹) - 1 - 1 = -((11 : ℝ) / 6) := by norm_num
+      rw [he]
+      norm_num
+      ring
+  have hL10' : HasDerivAt (fun x : ℝ => (2 / 5) * (((10 : ℝ)⁻¹) * x ^ (((10 : ℝ)⁻¹) - 1) * Real.log x + x ^ (((10 : ℝ)⁻¹) - 1)))
+      (-((9 : ℝ) / 250) * u ^ (-((19 : ℝ) / 10)) * Real.log u - ((8 : ℝ) / 25) * u ^ (-((19 : ℝ) / 10))) u := by
+    have h1 := hasDerivAt_rpow_mul_log (u := u) (p := ((10 : ℝ)⁻¹) - 1) hu
+    have h1c : HasDerivAt (fun x : ℝ => ((10 : ℝ)⁻¹) * (x ^ (((10 : ℝ)⁻¹) - 1) * Real.log x))
+        (((10 : ℝ)⁻¹) * ((((10 : ℝ)⁻¹) - 1) * u ^ (((10 : ℝ)⁻¹) - 1 - 1) * Real.log u + u ^ (((10 : ℝ)⁻¹) - 1 - 1))) u :=
+      h1.const_mul ((10 : ℝ)⁻¹)
+    have h2 : HasDerivAt (fun x : ℝ => x ^ (((10 : ℝ)⁻¹) - 1))
+        ((((10 : ℝ)⁻¹) - 1) * u ^ (((10 : ℝ)⁻¹) - 1 - 1)) u :=
+      Real.hasDerivAt_rpow_const (x := u) (p := ((10 : ℝ)⁻¹) - 1) (Or.inl (ne_of_gt hu))
+    have hsum : HasDerivAt (fun x : ℝ => ((10 : ℝ)⁻¹) * (x ^ (((10 : ℝ)⁻¹) - 1) * Real.log x) + x ^ (((10 : ℝ)⁻¹) - 1))
+        (((10 : ℝ)⁻¹) * ((((10 : ℝ)⁻¹) - 1) * u ^ (((10 : ℝ)⁻¹) - 1 - 1) * Real.log u + u ^ (((10 : ℝ)⁻¹) - 1 - 1))
+          + (((10 : ℝ)⁻¹) - 1) * u ^ (((10 : ℝ)⁻¹) - 1 - 1)) u :=
+      h1c.add h2
+    convert (hsum.const_mul (2 / 5)) using 1
+    · funext x
+      ring
+    · have he : ((10 : ℝ)⁻¹) - 1 - 1 = -((19 : ℝ) / 10) := by norm_num
+      rw [he]
+      norm_num
+      ring
+  have hsub : HasDerivAt (fun x : ℝ => farD K x)
+      (-K / u ^ 2 - Real.log 4 * (-((1 : ℝ) / 4) * u ^ (-((3 : ℝ) / 2)) + -((2 : ℝ) / 9) * u ^ (-((5 : ℝ) / 3))
+        + -((4 : ℝ) / 25) * u ^ (-((9 : ℝ) / 5)))
+        - (-((3 : ℝ) / 16) * u ^ (-((7 : ℝ) / 4)) * Real.log u - (1 / 2) * u ^ (-((7 : ℝ) / 4)))
+        - (-((5 : ℝ) / 54) * u ^ (-((11 : ℝ) / 6)) * Real.log u - ((4 : ℝ) / 9) * u ^ (-((11 : ℝ) / 6)))
+        - (-((9 : ℝ) / 250) * u ^ (-((19 : ℝ) / 10)) * Real.log u - ((8 : ℝ) / 25) * u ^ (-((19 : ℝ) / 10)))) u := by
+    convert ((((hD1.sub hC2).sub hL4').sub hL6').sub hL10') using 1
+    · funext x
+      dsimp [farD]
+  have hval : (-K / u ^ 2 - Real.log 4 * (-((1 : ℝ) / 4) * u ^ (-((3 : ℝ) / 2)) + -((2 : ℝ) / 9) * u ^ (-((5 : ℝ) / 3))
+        + -((4 : ℝ) / 25) * u ^ (-((9 : ℝ) / 5)))
+        - (-((3 : ℝ) / 16) * u ^ (-((7 : ℝ) / 4)) * Real.log u - (1 / 2) * u ^ (-((7 : ℝ) / 4)))
+        - (-((5 : ℝ) / 54) * u ^ (-((11 : ℝ) / 6)) * Real.log u - ((4 : ℝ) / 9) * u ^ (-((11 : ℝ) / 6)))
+        - (-((9 : ℝ) / 250) * u ^ (-((19 : ℝ) / 10)) * Real.log u - ((8 : ℝ) / 25) * u ^ (-((19 : ℝ) / 10)))) = farD2 K u := by
+    dsimp [farD2]
+    field_simp [ne_of_gt hu]
+    ring_nf
+  rw [hval] at hsub
+  have hfinal : deriv (fun x : ℝ => deriv (fun y : ℝ => farG K y) x) u = farD2 K u := by
+    rw [hdeq]
+    exact hsub.deriv
+  simpa [Function.iterate_succ_apply'] using hfinal
+
+/-! ### Power bounds for the far second-derivative negativity -/
+
+/-- `x^a ≤ x/b` whenever `b ≤ x^(1-a)`, `0 < x`, `0 < b`. -/
+lemma rpow_le_self_div {x : ℝ} (hx : 0 < x) (a b : ℝ) (hb : 0 < b) (h : b ≤ x ^ (1 - a)) :
+    x ^ a ≤ x / b := by
+  have hxsub : x ^ a = x / x ^ (1 - a) := by
+    calc
+      x ^ a = x ^ (1 - (1 - a)) := by
+        apply congrArg
+        ring
+      _ = x ^ (1 : ℝ) / x ^ (1 - a) := by rw [Real.rpow_sub hx]
+      _ = x / x ^ (1 - a) := by rw [Real.rpow_one]
+  rw [hxsub]
+  rw [div_le_div_iff₀ (by positivity : 0 < x ^ (1 - a)) hb]
+  exact mul_le_mul_of_nonneg_left h (by positivity : 0 ≤ x)
+
+/-- `x^(2/5) ≤ x/16` for `x ≥ 128`. -/
+lemma rpow_two_fifths_le_div_sixteen {x : ℝ} (hx : 128 ≤ x) : x ^ ((2 : ℝ) / 5) ≤ x / 16 := by
+  refine rpow_le_self_div (by linarith : 0 < x) ((2 : ℝ) / 5) 16 (by norm_num) ?_
+  have hpow := Real.rpow_le_rpow (by norm_num : (0 : ℝ) ≤ 128) hx (by norm_num : (0 : ℝ) ≤ 1 - (2 : ℝ) / 5)
+  have h128 : (128 : ℝ) ^ (1 - (2 : ℝ) / 5) = 2 ^ ((21 : ℝ) / 5) := by
+    have he : 1 - (2 : ℝ) / 5 = (3 : ℝ) / 5 := by norm_num
+    rw [he]
+    rw [show (128 : ℝ) = (2 : ℝ) ^ 7 by norm_num]
+    rw [← Real.rpow_natCast]
+    rw [← Real.rpow_mul (by norm_num : (0 : ℝ) ≤ 2)]
+    norm_num
+  have h16 : (16 : ℝ) ≤ 2 ^ ((21 : ℝ) / 5) := by
+    have hsum : (21 : ℝ) / 5 = 4 + (1 : ℝ) / 5 := by norm_num
+    rw [hsum, Real.rpow_add (by norm_num : (0 : ℝ) < 2)]
+    have h4 : (2 : ℝ) ^ (4 : ℝ) = 16 := by
+      norm_num [Real.rpow_natCast]
+    rw [h4]
+    have h15 : (1 : ℝ) ≤ 2 ^ ((1 : ℝ) / 5) := by
+      have hp := Real.rpow_le_rpow (by norm_num : (0 : ℝ) ≤ 1) (by norm_num : (1 : ℝ) ≤ 2)
+        (by norm_num : (0 : ℝ) ≤ (1 : ℝ) / 5)
+      rwa [Real.one_rpow] at hp
+    nlinarith
+  have hxr : 2 ^ ((21 : ℝ) / 5) ≤ x ^ (1 - (2 : ℝ) / 5) := by rwa [h128] at hpow
+  exact le_trans h16 hxr
+
+/-- `x^(1/3) ≤ (1/2)√x` for `x ≥ 64`. -/
+lemma rpow_third_le_half_sqrt {x : ℝ} (hx : 64 ≤ x) : x ^ ((1 : ℝ) / 3) ≤ (1 / 2) * Real.sqrt x := by
+  have hx0 : 0 < x := by linarith
+  have hxneg : x ^ (-((1 : ℝ) / 6)) ≤ 1 / 2 := by
+    have hx6 : (2 : ℝ) ≤ x ^ ((1 : ℝ) / 6) := by
+      have hpow := Real.rpow_le_rpow (by norm_num : (0 : ℝ) ≤ 64) hx (by norm_num : (0 : ℝ) ≤ (1 : ℝ) / 6)
+      have h64 : (64 : ℝ) ^ ((1 : ℝ) / 6) = 2 := by
+        rw [show (64 : ℝ) = (2 : ℝ) ^ 6 by norm_num]
+        rw [← Real.rpow_natCast]
+        rw [← Real.rpow_mul (by norm_num : (0 : ℝ) ≤ 2)]
+        norm_num
+      rwa [h64] at hpow
+    have hinv : (x ^ ((1 : ℝ) / 6))⁻¹ ≤ (1 / 2 : ℝ) := by
+      have hle : (x ^ ((1 : ℝ) / 6))⁻¹ ≤ (2 : ℝ)⁻¹ :=
+        (inv_le_inv₀ (by positivity : 0 < x ^ ((1 : ℝ) / 6)) (by norm_num : (0 : ℝ) < 2)).mpr hx6
+      simpa using hle
+    have hxneg' : x ^ (-((1 : ℝ) / 6)) = (x ^ ((1 : ℝ) / 6))⁻¹ := by
+      rw [Real.rpow_neg (by positivity : (0 : ℝ) ≤ x) ((1 : ℝ) / 6)]
+    rwa [← hxneg'] at hinv
+  have hx13 : x ^ ((1 : ℝ) / 3) = Real.sqrt x * x ^ (-((1 : ℝ) / 6)) := by
+    have h : (1 : ℝ) / 2 - 1 / 6 = (1 : ℝ) / 3 := by norm_num
+    rw [← h]
+    rw [Real.sqrt_eq_rpow]
+    rw [← Real.rpow_add hx0]
+    congr 1
+  rw [hx13]
+  have hsqpos : 0 ≤ Real.sqrt x := by positivity
+  nlinarith
+
+/-- `x^(1/5) ≤ x/8` for `x ≥ 128`. -/
+lemma rpow_fifth_le_div_eight {x : ℝ} (hx : 128 ≤ x) : x ^ ((1 : ℝ) / 5) ≤ x / 8 := by
+  refine rpow_le_self_div (by linarith : 0 < x) ((1 : ℝ) / 5) 8 (by norm_num) ?_
+  have hpow := Real.rpow_le_rpow (by norm_num : (0 : ℝ) ≤ 128) hx (by norm_num : (0 : ℝ) ≤ 1 - (1 : ℝ) / 5)
+  have h128 : (128 : ℝ) ^ (1 - (1 : ℝ) / 5) = 2 ^ ((28 : ℝ) / 5) := by
+    have he : 1 - (1 : ℝ) / 5 = (4 : ℝ) / 5 := by norm_num
+    rw [he]
+    rw [show (128 : ℝ) = (2 : ℝ) ^ 7 by norm_num]
+    rw [← Real.rpow_natCast]
+    rw [← Real.rpow_mul (by norm_num : (0 : ℝ) ≤ 2)]
+    norm_num
+  have h8 : (8 : ℝ) ≤ 2 ^ ((28 : ℝ) / 5) := by
+    have hsum : (28 : ℝ) / 5 = 5 + (3 : ℝ) / 5 := by norm_num
+    rw [hsum, Real.rpow_add (by norm_num : (0 : ℝ) < 2)]
+    have h5 : (2 : ℝ) ^ (5 : ℝ) = 32 := by
+      norm_num [Real.rpow_natCast]
+    rw [h5]
+    have h35 : (1 : ℝ) ≤ 2 ^ ((3 : ℝ) / 5) := by
+      have hp := Real.rpow_le_rpow (by norm_num : (0 : ℝ) ≤ 1) (by norm_num : (1 : ℝ) ≤ 2)
+        (by norm_num : (0 : ℝ) ≤ (3 : ℝ) / 5)
+      rwa [Real.one_rpow] at hp
+    nlinarith
+  have hxr : 2 ^ ((28 : ℝ) / 5) ≤ x ^ (1 - (1 : ℝ) / 5) := by rwa [h128] at hpow
+  exact le_trans h8 hxr
+
+/-- `u^(a-2) = u^a/u^2` for `0 < u`. -/
+lemma rpow_sub_two_div {u a : ℝ} (hu : 0 < u) : u ^ (a - (2 : ℝ)) = u ^ a / u ^ 2 := by
+  calc
+    u ^ (a - (2 : ℝ)) = u ^ a / u ^ (2 : ℝ) := by rw [Real.rpow_sub hu]
+    _ = u ^ a / u ^ 2 := by
+      congr 1
+      exact Real.rpow_natCast (x := u) (n := 2)
+
+/-- `farD2(K,u) < 0` on `[16K, K²]` for `K ≥ 128`: `farG` is strictly concave there. -/
+lemma deriv2_farG_neg {K u : ℝ} (hK128 : 128 ≤ K) (h16 : 16 * K ≤ u) (hu2 : u ≤ K * K) :
+    deriv^[2] (fun x : ℝ => farG K x) u < 0 := by
+  have hK : 0 < K := by linarith
+  have hu : 0 < u := by linarith
+  have hKpos : 0 ≤ K := hK.le
+  have hupos : 0 ≤ u := hu.le
+  have hu2pos : 0 < u ^ 2 := by positivity
+  have h64 : 64 ≤ K := by linarith
+  have h125 : 125 ≤ K := by linarith
+  have hlg : Real.log K ≤ (2 / 3 : ℝ) * Real.sqrt K := far_log_le_two_thirds_sqrt hK128
+  have hlg2 : 2 * Real.log K ≤ (4 / 3 : ℝ) * Real.sqrt K := by nlinarith
+  have hlg_nonneg : 0 ≤ Real.log K := Real.log_nonneg (by linarith : 1 ≤ K)
+  have hlogu_nonneg : 0 ≤ Real.log u := Real.log_nonneg (by linarith : 1 ≤ u)
+  have hlnu : Real.log u ≤ 2 * Real.log K := by
+    have hle : Real.log u ≤ Real.log (K * K) := Real.log_le_log (by linarith : 0 < u) hu2
+    have hKK : Real.log (K * K) = 2 * Real.log K := by
+      rw [Real.log_mul (ne_of_gt hK) (ne_of_gt hK)]
+      ring
+    rwa [hKK] at hle
+  -- u-powers bounded by K-powers (u ≤ K²)
+  have h12 : u ^ ((1 : ℝ) / 2) ≤ K := by
+    have h' : u ^ ((1 : ℝ) / 2) ≤ (K * K) ^ ((1 : ℝ) / 2) :=
+      Real.rpow_le_rpow hupos hu2 (by norm_num : (0 : ℝ) ≤ (1 : ℝ) / 2)
+    have hKK : (K * K) ^ ((1 : ℝ) / 2) = K := by
+      rw [show K * K = K ^ 2 by ring, ← Real.rpow_natCast, ← Real.rpow_mul hKpos]
+      norm_num
+    rwa [hKK] at h'
+  have h14 : u ^ ((1 : ℝ) / 4) ≤ K ^ ((1 : ℝ) / 2) := by
+    have h' : u ^ ((1 : ℝ) / 4) ≤ (K * K) ^ ((1 : ℝ) / 4) :=
+      Real.rpow_le_rpow hupos hu2 (by norm_num : (0 : ℝ) ≤ (1 : ℝ) / 4)
+    have hKK : (K * K) ^ ((1 : ℝ) / 4) = K ^ ((1 : ℝ) / 2) := by
+      rw [show K * K = K ^ 2 by ring, ← Real.rpow_natCast, ← Real.rpow_mul hKpos]
+      norm_num
+    rwa [hKK] at h'
+  have h16p : u ^ ((1 : ℝ) / 6) ≤ K ^ ((1 : ℝ) / 3) := by
+    have h' : u ^ ((1 : ℝ) / 6) ≤ (K * K) ^ ((1 : ℝ) / 6) :=
+      Real.rpow_le_rpow hupos hu2 (by norm_num : (0 : ℝ) ≤ (1 : ℝ) / 6)
+    have hKK : (K * K) ^ ((1 : ℝ) / 6) = K ^ ((1 : ℝ) / 3) := by
+      rw [show K * K = K ^ 2 by ring, ← Real.rpow_natCast, ← Real.rpow_mul hKpos]
+      norm_num
+    rwa [hKK] at h'
+  have h110 : u ^ ((1 : ℝ) / 10) ≤ K ^ ((1 : ℝ) / 5) := by
+    have h' : u ^ ((1 : ℝ) / 10) ≤ (K * K) ^ ((1 : ℝ) / 10) :=
+      Real.rpow_le_rpow hupos hu2 (by norm_num : (0 : ℝ) ≤ (1 : ℝ) / 10)
+    have hKK : (K * K) ^ ((1 : ℝ) / 10) = K ^ ((1 : ℝ) / 5) := by
+      rw [show K * K = K ^ 2 by ring, ← Real.rpow_natCast, ← Real.rpow_mul hKpos]
+      norm_num
+    rwa [hKK] at h'
+  have h13 : u ^ ((1 : ℝ) / 3) ≤ K ^ ((2 : ℝ) / 3) := by
+    have h' : u ^ ((1 : ℝ) / 3) ≤ (K * K) ^ ((1 : ℝ) / 3) :=
+      Real.rpow_le_rpow hupos hu2 (by norm_num : (0 : ℝ) ≤ (1 : ℝ) / 3)
+    have hKK : (K * K) ^ ((1 : ℝ) / 3) = K ^ ((2 : ℝ) / 3) := by
+      rw [show K * K = K ^ 2 by ring, ← Real.rpow_natCast, ← Real.rpow_mul hKpos]
+      norm_num
+    rwa [hKK] at h'
+  have h15 : u ^ ((1 : ℝ) / 5) ≤ K ^ ((2 : ℝ) / 5) := by
+    have h' : u ^ ((1 : ℝ) / 5) ≤ (K * K) ^ ((1 : ℝ) / 5) :=
+      Real.rpow_le_rpow hupos hu2 (by norm_num : (0 : ℝ) ≤ (1 : ℝ) / 5)
+    have hKK : (K * K) ^ ((1 : ℝ) / 5) = K ^ ((2 : ℝ) / 5) := by
+      rw [show K * K = K ^ 2 by ring, ← Real.rpow_natCast, ← Real.rpow_mul hKpos]
+      norm_num
+    rwa [hKK] at h'
+  -- K-power bounds
+  have hK12_le : K ^ ((1 : ℝ) / 2) ≤ K / 8 := by
+    have h := sqrt_le_eighth_self h64
+    rwa [Real.sqrt_eq_rpow] at h
+  have hK13_half : K ^ ((1 : ℝ) / 3) ≤ (1 / 2) * Real.sqrt K := rpow_third_le_half_sqrt h64
+  have hK12_sqrt : Real.sqrt K ≤ K / 8 := sqrt_le_eighth_self h64
+  have hK13_sixteenth : K ^ ((1 : ℝ) / 3) ≤ K / 16 := by
+    calc
+      K ^ ((1 : ℝ) / 3) ≤ (1 / 2) * Real.sqrt K := hK13_half
+      _ ≤ (1 / 2) * (K / 8) := by
+        exact mul_le_mul_of_nonneg_left hK12_sqrt (by norm_num : (0 : ℝ) ≤ 1 / 2)
+      _ = K / 16 := by norm_num; ring
+  have hK15_eighth : K ^ ((1 : ℝ) / 5) ≤ K / 8 := rpow_fifth_le_div_eight hK128
+  have hK13_log : K ^ ((1 : ℝ) / 3) * (2 * Real.log K) ≤ (2 / 3 : ℝ) * K := by
+    calc
+      K ^ ((1 : ℝ) / 3) * (2 * Real.log K) ≤ ((1 / 2) * Real.sqrt K) * (2 * Real.log K) := by
+        exact mul_le_mul_of_nonneg_right hK13_half (by nlinarith)
+      _ ≤ ((1 / 2) * Real.sqrt K) * ((4 / 3 : ℝ) * Real.sqrt K) := by
+        exact mul_le_mul_of_nonneg_left hlg2 (by positivity : 0 ≤ (1 / 2) * Real.sqrt K)
+      _ = (2 / 3 : ℝ) * K := by
+        ring_nf
+        rw [Real.sq_sqrt hKpos]
+  have hK15_log : K ^ ((1 : ℝ) / 5) * (2 * Real.log K) ≤ (1 / 3 : ℝ) * K := by
+    have h1 : K ^ ((1 : ℝ) / 5) * (2 * Real.log K) ≤ K ^ ((1 : ℝ) / 5) * ((4 / 3 : ℝ) * Real.sqrt K) := by
+      exact mul_le_mul_of_nonneg_left hlg2 (by positivity : 0 ≤ K ^ ((1 : ℝ) / 5))
+    have h2 : K ^ ((1 : ℝ) / 5) * ((4 / 3 : ℝ) * Real.sqrt K) ≤ (1 / 3 : ℝ) * K := by
+      have hdec : K ^ ((1 : ℝ) / 5) * Real.sqrt K = K ^ ((7 : ℝ) / 10) := by
+        rw [Real.sqrt_eq_rpow, ← Real.rpow_add hK]
+        congr 1
+        norm_num
+      have h710 : K ^ ((7 : ℝ) / 10) ≤ K / 4 := by
+        refine rpow_le_self_div (by linarith : 0 < K) ((7 : ℝ) / 10) 4 (by norm_num) ?_
+        have hp := Real.rpow_le_rpow (by norm_num : (0 : ℝ) ≤ 128) hK128 (by norm_num : (0 : ℝ) ≤ 1 - (7 : ℝ) / 10)
+        have he : 1 - (7 : ℝ) / 10 = (3 : ℝ) / 10 := by norm_num
+        have h128 : (128 : ℝ) ^ (1 - (7 : ℝ) / 10) = 2 ^ ((21 : ℝ) / 10) := by
+          rw [he]
+          rw [show (128 : ℝ) = (2 : ℝ) ^ 7 by norm_num]
+          rw [← Real.rpow_natCast]
+          rw [← Real.rpow_mul (by norm_num : (0 : ℝ) ≤ 2)]
+          norm_num
+        have h4 : (4 : ℝ) ≤ 2 ^ ((21 : ℝ) / 10) := by
+          have hsum : (21 : ℝ) / 10 = 2 + (1 : ℝ) / 10 := by norm_num
+          rw [hsum, Real.rpow_add (by norm_num : (0 : ℝ) < 2)]
+          have h4' : (2 : ℝ) ^ (2 : ℝ) = 4 := by norm_num [Real.rpow_natCast]
+          rw [h4']
+          have h110' : (1 : ℝ) ≤ 2 ^ ((1 : ℝ) / 10) := by
+            have hp1 := Real.rpow_le_rpow (by norm_num : (0 : ℝ) ≤ 1) (by norm_num : (1 : ℝ) ≤ 2)
+              (by norm_num : (0 : ℝ) ≤ (1 : ℝ) / 10)
+            rwa [Real.one_rpow ((1 : ℝ) / 10)] at hp1
+          nlinarith
+        have hxr : 2 ^ ((21 : ℝ) / 10) ≤ K ^ (1 - (7 : ℝ) / 10) := by rwa [h128] at hp
+        exact le_trans h4 hxr
+      calc
+        K ^ ((1 : ℝ) / 5) * ((4 / 3 : ℝ) * Real.sqrt K) = (4 / 3 : ℝ) * (K ^ ((1 : ℝ) / 5) * Real.sqrt K) := by ring
+        _ = (4 / 3 : ℝ) * K ^ ((7 : ℝ) / 10) := by rw [hdec]
+        _ ≤ (4 / 3 : ℝ) * (K / 4) := by
+          exact mul_le_mul_of_nonneg_left h710 (by norm_num : (0 : ℝ) ≤ 4 / 3)
+        _ = (1 / 3 : ℝ) * K := by norm_num; ring
+    exact h1.trans h2
+  -- term bounds (each ≤ constant · K/u²)
+  have hd32 : u ^ (-((3 : ℝ) / 2)) = u ^ ((1 : ℝ) / 2) / u ^ 2 := by
+    have ha : -((3 : ℝ) / 2) = (1 : ℝ) / 2 - (2 : ℝ) := by norm_num
+    rw [ha]
+    exact rpow_sub_two_div (u := u) (a := ((1 : ℝ) / 2)) hu
+  have hd53 : u ^ (-((5 : ℝ) / 3)) = u ^ ((1 : ℝ) / 3) / u ^ 2 := by
+    have ha : -((5 : ℝ) / 3) = (1 : ℝ) / 3 - (2 : ℝ) := by norm_num
+    rw [ha]
+    exact rpow_sub_two_div (u := u) (a := ((1 : ℝ) / 3)) hu
+  have hd95 : u ^ (-((9 : ℝ) / 5)) = u ^ ((1 : ℝ) / 5) / u ^ 2 := by
+    have ha : -((9 : ℝ) / 5) = (1 : ℝ) / 5 - (2 : ℝ) := by norm_num
+    rw [ha]
+    exact rpow_sub_two_div (u := u) (a := ((1 : ℝ) / 5)) hu
+  have hd74 : u ^ (-((7 : ℝ) / 4)) = u ^ ((1 : ℝ) / 4) / u ^ 2 := by
+    have ha : -((7 : ℝ) / 4) = (1 : ℝ) / 4 - (2 : ℝ) := by norm_num
+    rw [ha]
+    exact rpow_sub_two_div (u := u) (a := ((1 : ℝ) / 4)) hu
+  have hd116 : u ^ (-((11 : ℝ) / 6)) = u ^ ((1 : ℝ) / 6) / u ^ 2 := by
+    have ha : -((11 : ℝ) / 6) = (1 : ℝ) / 6 - (2 : ℝ) := by norm_num
+    rw [ha]
+    exact rpow_sub_two_div (u := u) (a := ((1 : ℝ) / 6)) hu
+  have hd1910 : u ^ (-((19 : ℝ) / 10)) = u ^ ((1 : ℝ) / 10) / u ^ 2 := by
+    have ha : -((19 : ℝ) / 10) = (1 : ℝ) / 10 - (2 : ℝ) := by norm_num
+    rw [ha]
+    exact rpow_sub_two_div (u := u) (a := ((1 : ℝ) / 10)) hu
+  have hdiv {a b : ℝ} (hab : a ≤ b) : a / u ^ 2 ≤ b / u ^ 2 := by
+    exact div_le_div_of_nonneg_right hab (by positivity : 0 ≤ u ^ 2)
+  rw [deriv2_farG hK hu]
+  -- Now bound farD2 < 0
+  have c1 : (1 / 4 : ℝ) * Real.log 4 * u ^ (-((3 : ℝ) / 2)) ≤ (1 / 4 : ℝ) * Real.log 4 * (K / u ^ 2) := by
+    rw [hd32]
+    exact mul_le_mul_of_nonneg_left (hdiv h12) (by positivity : 0 ≤ (1 / 4) * Real.log 4)
+  have c2 : (2 / 9 : ℝ) * Real.log 4 * u ^ (-((5 : ℝ) / 3)) ≤ (2 / 45 : ℝ) * Real.log 4 * (K / u ^ 2) := by
+    rw [hd53]
+    have h : (2 / 9 : ℝ) * Real.log 4 * (u ^ ((1 : ℝ) / 3) / u ^ 2) ≤ (2 / 9 : ℝ) * Real.log 4 * (K / 5 / u ^ 2) := by
+      exact mul_le_mul_of_nonneg_left (hdiv (h13.trans (rpow_two_thirds_le_div_five h125)))
+        (by positivity : 0 ≤ (2 / 9) * Real.log 4)
+    have heq : (2 / 9 : ℝ) * Real.log 4 * (K / 5 / u ^ 2) = (2 / 45 : ℝ) * Real.log 4 * (K / u ^ 2) := by
+      ring
+    rwa [heq] at h
+  have c3 : (4 / 25 : ℝ) * Real.log 4 * u ^ (-((9 : ℝ) / 5)) ≤ (1 / 100 : ℝ) * Real.log 4 * (K / u ^ 2) := by
+    rw [hd95]
+    have h : (4 / 25 : ℝ) * Real.log 4 * (u ^ ((1 : ℝ) / 5) / u ^ 2) ≤ (4 / 25 : ℝ) * Real.log 4 * (K / 16 / u ^ 2) := by
+      exact mul_le_mul_of_nonneg_left (hdiv (h15.trans (rpow_two_fifths_le_div_sixteen hK128)))
+        (by positivity : 0 ≤ (4 / 25) * Real.log 4)
+    have heq : (4 / 25 : ℝ) * Real.log 4 * (K / 16 / u ^ 2) = (1 / 100 : ℝ) * Real.log 4 * (K / u ^ 2) := by
+      ring
+    rwa [heq] at h
+  have c4 : (3 / 16 : ℝ) * u ^ (-((7 : ℝ) / 4)) * Real.log u ≤ (1 / 4 : ℝ) * (K / u ^ 2) := by
+    rw [hd74]
+    have hle : u ^ ((1 : ℝ) / 4) * Real.log u ≤ K ^ ((1 : ℝ) / 2) * (2 * Real.log K) := by
+      calc
+        u ^ ((1 : ℝ) / 4) * Real.log u ≤ K ^ ((1 : ℝ) / 2) * Real.log u := by
+          exact mul_le_mul_of_nonneg_right h14 hlogu_nonneg
+        _ ≤ K ^ ((1 : ℝ) / 2) * (2 * Real.log K) := by
+          exact mul_le_mul_of_nonneg_left hlnu (by positivity : 0 ≤ K ^ ((1 : ℝ) / 2))
+    have hK12_log : K ^ ((1 : ℝ) / 2) * (2 * Real.log K) ≤ (4 / 3 : ℝ) * K := by
+      calc
+        K ^ ((1 : ℝ) / 2) * (2 * Real.log K) = Real.sqrt K * (2 * Real.log K) := by rw [Real.sqrt_eq_rpow]
+        _ ≤ Real.sqrt K * ((4 / 3 : ℝ) * Real.sqrt K) := by
+          exact mul_le_mul_of_nonneg_left hlg2 (by positivity : 0 ≤ Real.sqrt K)
+        _ = (4 / 3 : ℝ) * K := by
+          ring_nf
+          rw [Real.sq_sqrt hKpos]
+    have hmain : (3 / 16 : ℝ) * (u ^ ((1 : ℝ) / 4) / u ^ 2) * Real.log u ≤ (1 / 4 : ℝ) * (K / u ^ 2) := by
+      have hnum : u ^ ((1 : ℝ) / 4) * Real.log u ≤ (4 / 3 : ℝ) * K := hle.trans hK12_log
+      have hdiv' : (u ^ ((1 : ℝ) / 4) * Real.log u) / u ^ 2 ≤ ((4 / 3 : ℝ) * K) / u ^ 2 := hdiv hnum
+      have h2 : (3 / 16 : ℝ) * (((4 / 3 : ℝ) * K) / u ^ 2) = (1 / 4 : ℝ) * (K / u ^ 2) := by ring
+      calc
+        (3 / 16 : ℝ) * (u ^ ((1 : ℝ) / 4) / u ^ 2) * Real.log u = (3 / 16 : ℝ) * ((u ^ ((1 : ℝ) / 4) * Real.log u) / u ^ 2) := by ring
+        _ ≤ (3 / 16 : ℝ) * (((4 / 3 : ℝ) * K) / u ^ 2) := by
+          exact mul_le_mul_of_nonneg_left hdiv' (by norm_num : (0 : ℝ) ≤ 3 / 16)
+        _ = (1 / 4 : ℝ) * (K / u ^ 2) := h2
+    exact hmain
+  have c5 : (5 / 54 : ℝ) * u ^ (-((11 : ℝ) / 6)) * Real.log u ≤ (5 / 81 : ℝ) * (K / u ^ 2) := by
+    rw [hd116]
+    have hnum : u ^ ((1 : ℝ) / 6) * Real.log u ≤ K ^ ((1 : ℝ) / 3) * (2 * Real.log K) := by
+      calc
+        u ^ ((1 : ℝ) / 6) * Real.log u ≤ K ^ ((1 : ℝ) / 3) * Real.log u := by
+          exact mul_le_mul_of_nonneg_right h16p hlogu_nonneg
+        _ ≤ K ^ ((1 : ℝ) / 3) * (2 * Real.log K) := by
+          exact mul_le_mul_of_nonneg_left hlnu (by positivity : 0 ≤ K ^ ((1 : ℝ) / 3))
+    have hK13l : K ^ ((1 : ℝ) / 3) * (2 * Real.log K) ≤ (2 / 3 : ℝ) * K := hK13_log
+    have hdiv' : (u ^ ((1 : ℝ) / 6) * Real.log u) / u ^ 2 ≤ ((2 / 3 : ℝ) * K) / u ^ 2 := hdiv (hnum.trans hK13l)
+    have heq : (5 / 54 : ℝ) * (((2 / 3 : ℝ) * K) / u ^ 2) = (5 / 81 : ℝ) * (K / u ^ 2) := by ring
+    calc
+      (5 / 54 : ℝ) * (u ^ ((1 : ℝ) / 6) / u ^ 2) * Real.log u = (5 / 54 : ℝ) * ((u ^ ((1 : ℝ) / 6) * Real.log u) / u ^ 2) := by ring
+      _ ≤ (5 / 54 : ℝ) * (((2 / 3 : ℝ) * K) / u ^ 2) := by
+        exact mul_le_mul_of_nonneg_left hdiv' (by norm_num : (0 : ℝ) ≤ 5 / 54)
+      _ = (5 / 81 : ℝ) * (K / u ^ 2) := heq
+  have c6 : (9 / 250 : ℝ) * u ^ (-((19 : ℝ) / 10)) * Real.log u ≤ (3 / 250 : ℝ) * (K / u ^ 2) := by
+    rw [hd1910]
+    have hnum : u ^ ((1 : ℝ) / 10) * Real.log u ≤ K ^ ((1 : ℝ) / 5) * (2 * Real.log K) := by
+      calc
+        u ^ ((1 : ℝ) / 10) * Real.log u ≤ K ^ ((1 : ℝ) / 5) * Real.log u := by
+          exact mul_le_mul_of_nonneg_right h110 hlogu_nonneg
+        _ ≤ K ^ ((1 : ℝ) / 5) * (2 * Real.log K) := by
+          exact mul_le_mul_of_nonneg_left hlnu (by positivity : 0 ≤ K ^ ((1 : ℝ) / 5))
+    have hK15l : K ^ ((1 : ℝ) / 5) * (2 * Real.log K) ≤ (1 / 3 : ℝ) * K := hK15_log
+    have hdiv' : (u ^ ((1 : ℝ) / 10) * Real.log u) / u ^ 2 ≤ ((1 / 3 : ℝ) * K) / u ^ 2 := hdiv (hnum.trans hK15l)
+    have heq : (9 / 250 : ℝ) * (((1 / 3 : ℝ) * K) / u ^ 2) = (3 / 250 : ℝ) * (K / u ^ 2) := by ring
+    calc
+      (9 / 250 : ℝ) * (u ^ ((1 : ℝ) / 10) / u ^ 2) * Real.log u = (9 / 250 : ℝ) * ((u ^ ((1 : ℝ) / 10) * Real.log u) / u ^ 2) := by ring
+      _ ≤ (9 / 250 : ℝ) * (((1 / 3 : ℝ) * K) / u ^ 2) := by
+        exact mul_le_mul_of_nonneg_left hdiv' (by norm_num : (0 : ℝ) ≤ 9 / 250)
+      _ = (3 / 250 : ℝ) * (K / u ^ 2) := heq
+  have c7 : (1 / 2 : ℝ) * u ^ (-((7 : ℝ) / 4)) ≤ (1 / 16 : ℝ) * (K / u ^ 2) := by
+    rw [hd74]
+    have hdiv' : u ^ ((1 : ℝ) / 4) / u ^ 2 ≤ (K / 8) / u ^ 2 := hdiv (h14.trans hK12_le)
+    have heq : (1 / 2 : ℝ) * ((K / 8) / u ^ 2) = (1 / 16 : ℝ) * (K / u ^ 2) := by ring
+    calc
+      (1 / 2 : ℝ) * (u ^ ((1 : ℝ) / 4) / u ^ 2) ≤ (1 / 2 : ℝ) * ((K / 8) / u ^ 2) := by
+        exact mul_le_mul_of_nonneg_left hdiv' (by norm_num : (0 : ℝ) ≤ 1 / 2)
+      _ = (1 / 16 : ℝ) * (K / u ^ 2) := heq
+  have c8 : (4 / 9 : ℝ) * u ^ (-((11 : ℝ) / 6)) ≤ (1 / 36 : ℝ) * (K / u ^ 2) := by
+    rw [hd116]
+    have hdiv' : u ^ ((1 : ℝ) / 6) / u ^ 2 ≤ (K / 16) / u ^ 2 := hdiv (h16p.trans hK13_sixteenth)
+    have heq : (4 / 9 : ℝ) * ((K / 16) / u ^ 2) = (1 / 36 : ℝ) * (K / u ^ 2) := by ring
+    calc
+      (4 / 9 : ℝ) * (u ^ ((1 : ℝ) / 6) / u ^ 2) ≤ (4 / 9 : ℝ) * ((K / 16) / u ^ 2) := by
+        exact mul_le_mul_of_nonneg_left hdiv' (by norm_num : (0 : ℝ) ≤ 4 / 9)
+      _ = (1 / 36 : ℝ) * (K / u ^ 2) := heq
+  have c9 : (8 / 25 : ℝ) * u ^ (-((19 : ℝ) / 10)) ≤ (1 / 25 : ℝ) * (K / u ^ 2) := by
+    rw [hd1910]
+    have hdiv' : u ^ ((1 : ℝ) / 10) / u ^ 2 ≤ (K / 8) / u ^ 2 := hdiv (h110.trans hK15_eighth)
+    have heq : (8 / 25 : ℝ) * ((K / 8) / u ^ 2) = (1 / 25 : ℝ) * (K / u ^ 2) := by ring
+    calc
+      (8 / 25 : ℝ) * (u ^ ((1 : ℝ) / 10) / u ^ 2) ≤ (8 / 25 : ℝ) * ((K / 8) / u ^ 2) := by
+        exact mul_le_mul_of_nonneg_left hdiv' (by norm_num : (0 : ℝ) ≤ 8 / 25)
+      _ = (1 / 25 : ℝ) * (K / u ^ 2) := heq
+  -- sum: farD2 ≤ -K/u² + [sum of constants]·K/u² < 0
+  have hcoeff : (1 / 4 + 2 / 45 + 1 / 100 : ℝ) * Real.log 4 + (1 / 4 + 5 / 81 + 3 / 250 + 1 / 16 + 1 / 36 + 1 / 25) < 1 := by
+    have h4 : Real.log 4 ≤ (3 : ℝ) / 2 := log_four_le_three_halves
+    norm_num at h4 ⊢
+    nlinarith
+  have hposK : 0 < K / u ^ 2 := by positivity
+  dsimp [farD2]
+  ring_nf at *
+  nlinarith [c1, c2, c3, c4, c5, c6, c7, c8, c9, hcoeff, hposK]
+
+/-- `(2/3)·x^{1/3} - log x` is strictly increasing on `[4096, ∞)`. -/
+lemma strictMonoOn_two_thirds_cuberoot_sub_log :
+    StrictMonoOn (fun x : ℝ => (2 / 3 : ℝ) * x ^ ((3 : ℝ)⁻¹) - Real.log x) (Set.Ici (4096 : ℝ)) := by
+  refine strictMonoOn_of_deriv_pos (convex_Ici (4096 : ℝ)) ?_ ?_
+  · have hcont : ContinuousOn (fun x : ℝ => (2 / 3 : ℝ) * x ^ ((3 : ℝ)⁻¹) - Real.log x)
+        (Set.Ioi (0 : ℝ)) := by
+      intro x hx
+      have hx0 : x ≠ 0 := ne_of_gt hx
+      have hpow : ContinuousAt (fun y : ℝ => y ^ ((3 : ℝ)⁻¹)) x := by
+        fun_prop
+      exact ((hpow.const_mul (2 / 3 : ℝ)).sub (Real.continuousAt_log hx0)).continuousWithinAt
+    refine hcont.mono ?_
+    intro x hx
+    rw [mem_Ici] at hx
+    exact (by norm_num : (0 : ℝ) < 4096).trans_le hx
+  · intro x hx
+    have hx4096 : 4096 < x := by simpa [Set.mem_Ici, interior_Ici] using hx
+    have hx0 : (0 : ℝ) < x := by linarith
+    have hr : HasDerivAt (fun y : ℝ => y ^ ((3 : ℝ)⁻¹))
+        (((3 : ℝ)⁻¹) * x ^ (((3 : ℝ)⁻¹) - 1)) x :=
+      Real.hasDerivAt_rpow_const (x := x) (p := (3 : ℝ)⁻¹) (Or.inl (ne_of_gt hx0))
+    have hg : HasDerivAt (fun y : ℝ => (2 / 3 : ℝ) * y ^ ((3 : ℝ)⁻¹) - Real.log y)
+        ((2 / 3 : ℝ) * (((3 : ℝ)⁻¹) * x ^ (((3 : ℝ)⁻¹) - 1)) - x⁻¹) x :=
+      (hr.const_mul (2 / 3 : ℝ)).sub (Real.hasDerivAt_log (ne_of_gt hx0))
+    rw [hg.deriv]
+    have hx16 : (16 : ℝ) < x ^ ((3 : ℝ)⁻¹) := by
+      have hpow := Real.rpow_lt_rpow (by norm_num : (0 : ℝ) ≤ 4096) hx4096 (by norm_num : (0 : ℝ) < (3 : ℝ)⁻¹)
+      have h4096 : (4096 : ℝ) ^ ((3 : ℝ)⁻¹) = 16 := by
+        rw [show (4096 : ℝ) = (2 : ℝ) ^ (12 : ℕ) by norm_num]
+        rw [← Real.rpow_natCast]
+        rw [← Real.rpow_mul (by norm_num : (0 : ℝ) ≤ 2)]
+        norm_num
+      rwa [h4096] at hpow
+    have hxdec : x ^ (-((2 : ℝ) / 3)) = x⁻¹ * x ^ ((3 : ℝ)⁻¹) := by
+      have h : -((2 : ℝ) / 3) = -1 + (3 : ℝ)⁻¹ := by norm_num
+      rw [h, Real.rpow_add hx0]
+      congr 1
+      rw [Real.rpow_neg (by positivity : (0 : ℝ) ≤ x) (1 : ℝ)]
+      rw [Real.rpow_one]
+    have hcalc : (2 / 3 : ℝ) * (((3 : ℝ)⁻¹) * x ^ (((3 : ℝ)⁻¹) - 1)) - x⁻¹
+        = x⁻¹ * ((2 / 9 : ℝ) * x ^ ((3 : ℝ)⁻¹) - 1) := by
+      have h1 : ((3 : ℝ)⁻¹) - 1 = -((2 : ℝ) / 3) := by norm_num
+      rw [h1, hxdec]
+      field_simp [hx0.ne']
+      ring
+    rw [hcalc]
+    have hpos : 0 < (2 / 9 : ℝ) * x ^ ((3 : ℝ)⁻¹) - 1 := by
+      have h1 : (9 : ℝ) / 2 < x ^ ((3 : ℝ)⁻¹) := by nlinarith [hx16]
+      have hmul : (2 / 9 : ℝ) * (9 / 2) < (2 / 9 : ℝ) * x ^ ((3 : ℝ)⁻¹) := by
+        exact mul_lt_mul_of_pos_left h1 (by norm_num : (0 : ℝ) < 2 / 9)
+      nlinarith
+    have hxinv : 0 < x⁻¹ := by positivity
+    nlinarith
+
+/-- `ln x ≤ (2/3)·x^{1/3}` for `x ≥ 4096`. -/
+lemma far_log_le_two_thirds_cuberoot {x : ℝ} (hx : 4096 ≤ x) :
+    Real.log x ≤ (2 / 3 : ℝ) * x ^ ((3 : ℝ)⁻¹) := by
+  by_cases hxeq : x = 4096
+  · subst x
+    have hbase : (0 : ℝ) ≤ (2 / 3 : ℝ) * (4096 : ℝ) ^ ((3 : ℝ)⁻¹) - Real.log 4096 := by
+      have h4096 : (4096 : ℝ) ^ ((3 : ℝ)⁻¹) = 16 := by
+        rw [show (4096 : ℝ) = (2 : ℝ) ^ (12 : ℕ) by norm_num]
+        rw [← Real.rpow_natCast]
+        rw [← Real.rpow_mul (by norm_num : (0 : ℝ) ≤ 2)]
+        norm_num
+      rw [h4096]
+      have hlog : Real.log 4096 ≤ 9 := by
+        rw [show (4096 : ℝ) = (2 : ℝ) ^ (12 : ℕ) by norm_num, Real.log_pow]
+        calc
+          12 * Real.log 2 ≤ 12 * (3 / 4 : ℝ) := by gcongr; exact log_two_le_three_fourths
+          _ = 9 := by norm_num
+      have h16 : (9 : ℝ) ≤ (2 / 3 : ℝ) * 16 := by norm_num
+      nlinarith
+    simpa using hbase
+  · have hxlt : (4096 : ℝ) < x := lt_of_le_of_ne hx (Ne.symm hxeq)
+    have hg := strictMonoOn_two_thirds_cuberoot_sub_log
+    have h4096i : (4096 : ℝ) ∈ Set.Ici 4096 := by simp
+    have hxI : x ∈ Set.Ici 4096 := by simp [hx]
+    have hmono : (2 / 3 : ℝ) * (4096 : ℝ) ^ ((3 : ℝ)⁻¹) - Real.log 4096
+        ≤ (2 / 3 : ℝ) * x ^ ((3 : ℝ)⁻¹) - Real.log x := (hg h4096i hxI hxlt).le
+    have hbase : (0 : ℝ) ≤ (2 / 3 : ℝ) * (4096 : ℝ) ^ ((3 : ℝ)⁻¹) - Real.log 4096 := by
+      have h4096 : (4096 : ℝ) ^ ((3 : ℝ)⁻¹) = 16 := by
+        rw [show (4096 : ℝ) = (2 : ℝ) ^ (12 : ℕ) by norm_num]
+        rw [← Real.rpow_natCast]
+        rw [← Real.rpow_mul (by norm_num : (0 : ℝ) ≤ 2)]
+        norm_num
+      rw [h4096]
+      have hlog : Real.log 4096 ≤ 9 := by
+        rw [show (4096 : ℝ) = (2 : ℝ) ^ (12 : ℕ) by norm_num, Real.log_pow]
+        calc
+          12 * Real.log 2 ≤ 12 * (3 / 4 : ℝ) := by gcongr; exact log_two_le_three_fourths
+          _ = 9 := by norm_num
+      have h16 : (9 : ℝ) ≤ (2 / 3 : ℝ) * 16 := by norm_num
+      nlinarith
+    linarith
+
+/-! Endpoint lemmas `farG_sixteenK_pos` / `farG_sqK_pos` and `farG_pos` are the next step.
+See `NEXT_SESSION_PROMPT.md` / `SYLVESTER_CONTINUE.md`. -/
