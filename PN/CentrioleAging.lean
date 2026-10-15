@@ -6,7 +6,7 @@ set_option linter.unnecessarySeqFocus false
 # Formally verified mathematics of the centriole geometric-aging model
 
 This file formalizes the mathematical core of the quantitative model of centriole
-geometric aging (Tqemaladze, *Spatially Constrained, Not Chemically Copied*, bioRxiv 2026).
+geometric aging (Tqemaladze, centriole geometric-aging manuscript, in preparation).
 The model: a length/geometry trait `L` is passed from mother to daughter with
 transmission coefficient `α ∈ [0,1]`:
 

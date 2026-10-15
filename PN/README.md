@@ -75,7 +75,8 @@ PR proposal is in `PR.md`.
 ## Centriole geometric-aging model — formally verified mathematics
 
 The mathematical core of the quantitative model of centriole geometric aging
-(Tqemaladze, bioRxiv 2026) is machine-checked in `CentrioleAging.lean`:
+(Tqemaladze, centriole geometric-aging manuscript, in preparation) is machine-checked
+in `CentrioleAging.lean`:
 
 ```
 L_{n+1} = α·L_n + (1-α)·L_0 + μ + ε_n ,   α ≈ 0.97
