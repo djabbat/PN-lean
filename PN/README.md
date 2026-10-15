@@ -72,7 +72,19 @@ Environment: Lean 4.35.0, Mathlib v4.35.0.
 machine-verified formal proof in Lean/mathlib4, which is absent from Mathlib. A mathlib4
 PR proposal is in `PR.md`.
 
-## Centriole division-counter model — organismal aging (Rust, computational)
+## Centriole division-counter model — formalized core in Lean + numerical sims in Rust
+
+`PN/CentrioleModel.lean` — **Lean**: the provable mathematical core (0 errors):
+- `reservoir_closed_form`, `reservoir_mono`, `reservoir_tendsto` — damage-reservoir
+  counter: closed form `D_n = d(1-(1-c)ⁿ)/c`, non-decreasing, limit `d/c`;
+- `multiHit_zero` — no-hit compartment `X_0(n) = n0(1-l)ⁿ`;
+- `levelEntropy_mono` — self-renewal decline → entropy non-decreasing (organismal aging);
+- `export_strictAnti` — `f(S)=f₀e^(−kS)` strictly decreasing (falsifiable prediction).
+
+`PN/centriole_model/rust/` — numerical/stochastic part: Monte-Carlo, simulation,
+`audit_cycles` (120 cycles, all invariants pass), `pubmed_verify`. Python not used.
+
+
 
 `PN/centriole_model/` — a computational multi-counter model of organismal aging
 (division counters: centriole, telomeres, mtDNA, proteostasis, epigenetic mitotic
