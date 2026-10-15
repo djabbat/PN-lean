@@ -1870,5 +1870,598 @@ lemma far_log_le_two_thirds_cuberoot {x : ℝ} (hx : 4096 ≤ x) :
       nlinarith
     linarith
 
-/-! Endpoint lemmas `farG_sixteenK_pos` / `farG_sqK_pos` and `farG_pos` are the next step.
-See `NEXT_SESSION_PROMPT.md` / `SYLVESTER_CONTINUE.md`. -/
+/-! ### Endpoint-positivity machinery for `farG`
+
+Helpers: power-of-16 expansions, `2^(4/3)`-type constant bounds, `K^a ≤ √K`
+bounds, the `K^(7/12) ≤ K/8` bound, and `√K ≤ K/16`. Then the two endpoint
+lemmas `farG_sixteenK_pos` (E1) and `farG_sqK_pos` (E2), the strict-concavity
+lemma `concaveOn_farG`, and the positive-everywhere lemma `farG_pos`. -/
+
+/-- `√x ≤ x/16` for `x ≥ 256`. -/
+lemma sqrt_le_sixteenth_self {x : ℝ} (hx : 256 ≤ x) : Real.sqrt x ≤ x / 16 := by
+  have hxpos : 0 < x := by linarith
+  have h16 : 16 ≤ Real.sqrt x := by
+    have h' : Real.sqrt 256 ≤ Real.sqrt x := Real.sqrt_le_sqrt hx
+    norm_num at h'
+    exact h'
+  have hsq : Real.sqrt x ^ 2 = x := Real.sq_sqrt hxpos.le
+  have hs0 : 0 ≤ Real.sqrt x := by positivity
+  nlinarith
+
+/-- `K^a ≤ √K` for `1 ≤ K` and `a ≤ 1/2`. -/
+lemma rpow_le_sqrt {K : ℝ} (hK : 1 ≤ K) {a : ℝ} (ha : a ≤ (1 : ℝ) / 2) :
+    K ^ a ≤ Real.sqrt K := by
+  have h := Real.rpow_le_rpow_of_exponent_le hK ha
+  rwa [← Real.sqrt_eq_rpow] at h
+
+/-- `x^(7/12) ≤ x/8` for `x ≥ 256`. -/
+lemma rpow_seven_twelfths_le_div_eight {x : ℝ} (hx : 256 ≤ x) :
+    x ^ ((7 : ℝ) / 12) ≤ x / 8 := by
+  refine rpow_le_self_div (by linarith : 0 < x) ((7 : ℝ) / 12) 8 (by norm_num) ?_
+  have hpow := Real.rpow_le_rpow (by norm_num : (0 : ℝ) ≤ 256) hx (by norm_num : (0 : ℝ) ≤ (5 : ℝ) / 12)
+  have h256 : (256 : ℝ) ^ ((5 : ℝ) / 12) = (2 : ℝ) ^ ((10 : ℝ) / 3) := by
+    rw [show (256 : ℝ) = (2 : ℝ) ^ (8 : ℕ) by norm_num]
+    rw [← Real.rpow_natCast]
+    rw [← Real.rpow_mul (by norm_num : (0 : ℝ) ≤ 2)]
+    norm_num
+  have h8 : (8 : ℝ) ≤ (2 : ℝ) ^ ((10 : ℝ) / 3) := by
+    have hR : ((2 : ℝ) ^ ((10 : ℝ) / 3)) ^ (3 : ℝ) = 1024 := by
+      rw [← Real.rpow_mul (by norm_num : (0 : ℝ) ≤ 2)]
+      norm_num
+    have hL : (8 : ℝ) ^ (3 : ℝ) = 512 := by norm_num
+    have hle : (8 : ℝ) ^ (3 : ℝ) ≤ ((2 : ℝ) ^ ((10 : ℝ) / 3)) ^ (3 : ℝ) := by
+      rw [hL, hR]
+      norm_num
+    exact (Real.rpow_le_rpow_iff (by norm_num : (0 : ℝ) ≤ 8)
+        (by positivity : (0 : ℝ) ≤ 2 ^ ((10 : ℝ) / 3)) (by norm_num : (0 : ℝ) < 3)).mp hle
+  have hxr : (2 : ℝ) ^ ((10 : ℝ) / 3) ≤ x ^ ((5 : ℝ) / 12) := by
+    rwa [h256] at hpow
+  have h8x : (8 : ℝ) ≤ x ^ ((5 : ℝ) / 12) := h8.trans hxr
+  simpa [show 1 - (7 : ℝ) / 12 = (5 : ℝ) / 12 by norm_num] using h8x
+/-- `16^a = 2^(4a)` for all real `a`. -/
+lemma rpow16 {a : ℝ} : (16 : ℝ) ^ a = (2 : ℝ) ^ (4 * a) := by
+  rw [show (16 : ℝ) = (2 : ℝ) ^ (4 : ℕ) by norm_num]
+  rw [← Real.rpow_natCast]
+  rw [← Real.rpow_mul (by norm_num : (0 : ℝ) ≤ 2)]
+  norm_num
+
+/-- `(16K)^a = 2^(4a) · K^a` for `0 ≤ K`. -/
+lemma rpow16_mul {a : ℝ} {K : ℝ} (hK : 0 ≤ K) : (16 * K) ^ a = (2 : ℝ) ^ (4 * a) * K ^ a := by
+  rw [Real.mul_rpow (by norm_num : (0 : ℝ) ≤ 16) hK, rpow16]
+
+/-- `(16K)^(1/3) = 2^(4/3)·K^(1/3)`. -/
+lemma rpow16_mul_third {K : ℝ} (hK : 0 ≤ K) :
+    (16 * K) ^ ((3 : ℝ)⁻¹) = (2 : ℝ) ^ ((4 : ℝ) / 3) * K ^ ((3 : ℝ)⁻¹) := by
+  rw [rpow16_mul hK]
+  congr 2 <;> norm_num
+
+/-- `(16K)^(1/5) = 2^(4/5)·K^(1/5)`. -/
+lemma rpow16_mul_fifth {K : ℝ} (hK : 0 ≤ K) :
+    (16 * K) ^ ((5 : ℝ)⁻¹) = (2 : ℝ) ^ ((4 : ℝ) / 5) * K ^ ((5 : ℝ)⁻¹) := by
+  rw [rpow16_mul hK]
+  congr 2 <;> norm_num
+
+/-- `(16K)^(1/4) = 2·K^(1/4)`. -/
+lemma rpow16_mul_quarter {K : ℝ} (hK : 0 ≤ K) :
+    (16 * K) ^ ((4 : ℝ)⁻¹) = 2 * K ^ ((4 : ℝ)⁻¹) := by
+  rw [rpow16_mul hK]
+  congr 2 <;> norm_num
+
+/-- `(16K)^(1/6) = 2^(2/3)·K^(1/6)`. -/
+lemma rpow16_mul_sixth {K : ℝ} (hK : 0 ≤ K) :
+    (16 * K) ^ ((6 : ℝ)⁻¹) = (2 : ℝ) ^ ((2 : ℝ) / 3) * K ^ ((6 : ℝ)⁻¹) := by
+  rw [rpow16_mul hK]
+  congr 2 <;> norm_num
+
+/-- `(16K)^(1/10) = 2^(2/5)·K^(1/10)`. -/
+lemma rpow16_mul_tenth {K : ℝ} (hK : 0 ≤ K) :
+    (16 * K) ^ ((10 : ℝ)⁻¹) = (2 : ℝ) ^ ((2 : ℝ) / 5) * K ^ ((10 : ℝ)⁻¹) := by
+  rw [rpow16_mul hK]
+  congr 2 <;> norm_num
+
+/-- `2^(4/3) ≤ 13/5`. -/
+lemma two_pow_four_thirds_le : (2 : ℝ) ^ ((4 : ℝ) / 3) ≤ (13 : ℝ) / 5 := by
+  have hL : ((2 : ℝ) ^ ((4 : ℝ) / 3)) ^ (3 : ℝ) = 16 := by
+    rw [← Real.rpow_mul (by norm_num : (0 : ℝ) ≤ 2)]
+    norm_num
+  have hle : ((2 : ℝ) ^ ((4 : ℝ) / 3)) ^ (3 : ℝ) ≤ ((13 : ℝ) / 5) ^ (3 : ℝ) := by
+    rw [hL]
+    norm_num
+  exact (Real.rpow_le_rpow_iff (by positivity : (0 : ℝ) ≤ 2 ^ ((4 : ℝ) / 3))
+      (by norm_num : (0 : ℝ) ≤ 13 / 5) (by norm_num : (0 : ℝ) < 3)).mp hle
+
+/-- `2^(4/5) ≤ 7/4`. -/
+lemma two_pow_four_fifths_le : (2 : ℝ) ^ ((4 : ℝ) / 5) ≤ (7 : ℝ) / 4 := by
+  have hL : ((2 : ℝ) ^ ((4 : ℝ) / 5)) ^ (5 : ℝ) = 16 := by
+    rw [← Real.rpow_mul (by norm_num : (0 : ℝ) ≤ 2)]
+    norm_num
+  have hle : ((2 : ℝ) ^ ((4 : ℝ) / 5)) ^ (5 : ℝ) ≤ ((7 : ℝ) / 4) ^ (5 : ℝ) := by
+    rw [hL]
+    norm_num
+  exact (Real.rpow_le_rpow_iff (by positivity : (0 : ℝ) ≤ 2 ^ ((4 : ℝ) / 5))
+      (by norm_num : (0 : ℝ) ≤ 7 / 4) (by norm_num : (0 : ℝ) < 5)).mp hle
+
+/-- `2^(2/3) ≤ 8/5`. -/
+lemma two_pow_two_thirds_le : (2 : ℝ) ^ ((2 : ℝ) / 3) ≤ (8 : ℝ) / 5 := by
+  have hL : ((2 : ℝ) ^ ((2 : ℝ) / 3)) ^ (3 : ℝ) = 4 := by
+    rw [← Real.rpow_mul (by norm_num : (0 : ℝ) ≤ 2)]
+    norm_num
+  have hle : ((2 : ℝ) ^ ((2 : ℝ) / 3)) ^ (3 : ℝ) ≤ ((8 : ℝ) / 5) ^ (3 : ℝ) := by
+    rw [hL]
+    norm_num
+  exact (Real.rpow_le_rpow_iff (by positivity : (0 : ℝ) ≤ 2 ^ ((2 : ℝ) / 3))
+      (by norm_num : (0 : ℝ) ≤ 8 / 5) (by norm_num : (0 : ℝ) < 3)).mp hle
+
+/-- `2^(2/5) ≤ 4/3`. -/
+lemma two_pow_two_fifths_le : (2 : ℝ) ^ ((2 : ℝ) / 5) ≤ (4 : ℝ) / 3 := by
+  have hL : ((2 : ℝ) ^ ((2 : ℝ) / 5)) ^ (5 : ℝ) = 4 := by
+    rw [← Real.rpow_mul (by norm_num : (0 : ℝ) ≤ 2)]
+    norm_num
+  have hle : ((2 : ℝ) ^ ((2 : ℝ) / 5)) ^ (5 : ℝ) ≤ ((4 : ℝ) / 3) ^ (5 : ℝ) := by
+    rw [hL]
+    norm_num
+  exact (Real.rpow_le_rpow_iff (by positivity : (0 : ℝ) ≤ 2 ^ ((2 : ℝ) / 5))
+      (by norm_num : (0 : ℝ) ≤ 4 / 3) (by norm_num : (0 : ℝ) < 5)).mp hle
+
+/-- `log(16K) ≤ (2/3)·2^(4/3)·K^(1/3)` for `256 ≤ K`. -/
+lemma log16K_le_two_thirds_cuberoot16K {K : ℝ} (hK256 : 256 ≤ K) :
+    Real.log (16 * K) ≤ (2 / 3) * (2 : ℝ) ^ ((4 : ℝ) / 3) * K ^ ((3 : ℝ)⁻¹) := by
+  have h16K : (4096 : ℝ) ≤ 16 * K := by nlinarith
+  have h := far_log_le_two_thirds_cuberoot h16K
+  have hpow : (16 * K) ^ ((3 : ℝ)⁻¹) = (2 : ℝ) ^ ((4 : ℝ) / 3) * K ^ ((3 : ℝ)⁻¹) :=
+    rpow16_mul_third (by linarith : 0 ≤ K)
+  rw [hpow] at h
+  have hre : (2 / 3) * ((2 : ℝ) ^ ((4 : ℝ) / 3) * K ^ ((3 : ℝ)⁻¹))
+      = (2 / 3) * (2 : ℝ) ^ ((4 : ℝ) / 3) * K ^ ((3 : ℝ)⁻¹) := by ring
+  rwa [hre] at h
+
+-- ============ E1 bound lemmas ============
+
+/-- `2^(2/3)·2^(4/3) = 4`. -/
+lemma rpow_23_mul_43 : (2 : ℝ) ^ ((2 : ℝ) / 3) * (2 : ℝ) ^ ((4 : ℝ) / 3) = (4 : ℝ) := by
+  rw [← Real.rpow_add (by norm_num : (0 : ℝ) < 2)]
+  have h : (2 : ℝ) / 3 + (4 : ℝ) / 3 = 2 := by norm_num
+  rw [h]
+  norm_num [Real.rpow_two]
+
+/-- `2^(2/5)·2^(4/3) = 2^(26/15)`. -/
+lemma rpow_25_mul_43 : (2 : ℝ) ^ ((2 : ℝ) / 5) * (2 : ℝ) ^ ((4 : ℝ) / 3) = (2 : ℝ) ^ ((26 : ℝ) / 15) := by
+  rw [← Real.rpow_add (by norm_num : (0 : ℝ) < 2)]
+  congr 1
+  norm_num
+
+/-- `K^(1/6)·K^(1/3) = √K` for `0 < K`. -/
+lemma rpow_16_mul_13 {K : ℝ} (hK : 0 < K) : K ^ ((6 : ℝ)⁻¹) * K ^ ((3 : ℝ)⁻¹) = Real.sqrt K := by
+  rw [← Real.rpow_add hK]
+  have h : (6 : ℝ)⁻¹ + (3 : ℝ)⁻¹ = (1 : ℝ) / 2 := by norm_num
+  rw [h]
+  rw [← Real.sqrt_eq_rpow]
+
+/-- `K^(1/10)·K^(1/3) = K^(13/30)` for `0 < K`. -/
+lemma rpow_110_mul_13 {K : ℝ} (hK : 0 < K) : K ^ ((10 : ℝ)⁻¹) * K ^ ((3 : ℝ)⁻¹) = K ^ ((13 : ℝ) / 30) := by
+  rw [← Real.rpow_add hK]
+  have h : (10 : ℝ)⁻¹ + (3 : ℝ)⁻¹ = (13 : ℝ) / 30 := by norm_num
+  rw [h]
+
+/-- `2^(26/15) ≤ 52/15`. -/
+lemma rpow_2615_le : (2 : ℝ) ^ ((26 : ℝ) / 15) ≤ (52 : ℝ) / 15 := by
+  have h1 : (2 : ℝ) ^ ((2 : ℝ) / 5) ≤ 4 / 3 := two_pow_two_fifths_le
+  have h2 : (2 : ℝ) ^ ((4 : ℝ) / 3) ≤ 13 / 5 := two_pow_four_thirds_le
+  have hmul : (2 : ℝ) ^ ((2 : ℝ) / 5) * (2 : ℝ) ^ ((4 : ℝ) / 3) ≤ (4 / 3) * (13 / 5) :=
+    mul_le_mul h1 h2 (by positivity : (0 : ℝ) ≤ 2 ^ ((4 : ℝ) / 3)) (by norm_num : (0 : ℝ) ≤ 4 / 3)
+  have hval : (4 / 3 : ℝ) * (13 / 5 : ℝ) = 52 / 15 := by norm_num
+  calc
+    (2 : ℝ) ^ ((26 : ℝ) / 15) ≤ (4 / 3 : ℝ) * (13 / 5 : ℝ) := by
+      rw [rpow_25_mul_43] at hmul
+      exact hmul
+    _ = 52 / 15 := hval
+
+/-- The `ln4`-bracket at `u = 16K` is `≤ ln4·(167/20)·√K`. -/
+lemma farG16_sqrt_group_bound {K : ℝ} (hK256 : 256 ≤ K) :
+    Real.log 4 * (4 * Real.sqrt K + (2 : ℝ) ^ ((4 : ℝ) / 3) * K ^ ((3 : ℝ)⁻¹)
+        + (2 : ℝ) ^ ((4 : ℝ) / 5) * K ^ ((5 : ℝ)⁻¹))
+      ≤ Real.log 4 * ((167 : ℝ) / 20) * Real.sqrt K := by
+  have hK1 : 1 ≤ K := by linarith
+  have hKge0 : 0 ≤ Real.log 4 := le_of_lt (Real.log_pos (by norm_num : (1 : ℝ) < 4))
+  have h13 : K ^ ((3 : ℝ)⁻¹) ≤ Real.sqrt K := by
+    apply rpow_le_sqrt hK1
+    norm_num
+  have h15 : K ^ ((5 : ℝ)⁻¹) ≤ Real.sqrt K := by
+    apply rpow_le_sqrt hK1
+    norm_num
+  have hcoef : 4 + (2 : ℝ) ^ ((4 : ℝ) / 3) + (2 : ℝ) ^ ((4 : ℝ) / 5) ≤ (167 : ℝ) / 20 := by
+    nlinarith [two_pow_four_thirds_le, two_pow_four_fifths_le]
+  have hbracket : 4 * Real.sqrt K + (2 : ℝ) ^ ((4 : ℝ) / 3) * K ^ ((3 : ℝ)⁻¹)
+        + (2 : ℝ) ^ ((4 : ℝ) / 5) * K ^ ((5 : ℝ)⁻¹) ≤ (167 : ℝ) / 20 * Real.sqrt K := by
+    have hs0 : 0 ≤ Real.sqrt K := by positivity
+    have hp24 : 0 ≤ (2 : ℝ) ^ ((4 : ℝ) / 3) := by positivity
+    have hp25 : 0 ≤ (2 : ℝ) ^ ((4 : ℝ) / 5) := by positivity
+    nlinarith [h13, h15, hcoef, hs0, hp24, hp25]
+  have hmul := mul_le_mul_of_nonneg_left hbracket hKge0
+  nlinarith [hmul]
+
+/-- The `2K^{1/4}·ln(16K)` term at `u = 16K` is `≤ (13/30)·K`. -/
+lemma farG16_t1_bound {K : ℝ} (hK256 : 256 ≤ K) :
+    2 * K ^ ((4 : ℝ)⁻¹) * Real.log (16 * K) ≤ (13 : ℝ) / 30 * K := by
+  have hK : 0 < K := by linarith
+  have hKge0 : 0 ≤ K := hK.le
+  have hlog := log16K_le_two_thirds_cuberoot16K hK256
+  have hc : 0 ≤ 2 * K ^ ((4 : ℝ)⁻¹) := by positivity
+  have h1 : 2 * K ^ ((4 : ℝ)⁻¹) * Real.log (16 * K)
+      ≤ 2 * K ^ ((4 : ℝ)⁻¹) * ((2 / 3) * (2 : ℝ) ^ ((4 : ℝ) / 3) * K ^ ((3 : ℝ)⁻¹)) := by
+    exact mul_le_mul_of_nonneg_left hlog hc
+  have hKmul : K ^ ((4 : ℝ)⁻¹) * K ^ ((3 : ℝ)⁻¹) = K ^ ((7 : ℝ) / 12) := by
+    rw [← Real.rpow_add hK]
+    congr 1
+    norm_num
+  have hprod : 2 * K ^ ((4 : ℝ)⁻¹) * ((2 / 3) * (2 : ℝ) ^ ((4 : ℝ) / 3) * K ^ ((3 : ℝ)⁻¹))
+      = (4 / 3) * (2 : ℝ) ^ ((4 : ℝ) / 3) * K ^ ((7 : ℝ) / 12) := by
+    rw [← hKmul]
+    ring
+  have hK712 := rpow_seven_twelfths_le_div_eight hK256
+  have h2 : (4 / 3) * (2 : ℝ) ^ ((4 : ℝ) / 3) * K ^ ((7 : ℝ) / 12)
+      ≤ (4 / 3) * (2 : ℝ) ^ ((4 : ℝ) / 3) * (K / 8) := by
+    have hc2 : 0 ≤ (4 / 3) * (2 : ℝ) ^ ((4 : ℝ) / 3) := by positivity
+    exact mul_le_mul_of_nonneg_left hK712 hc2
+  have h3 : (4 / 3) * (2 : ℝ) ^ ((4 : ℝ) / 3) * (K / 8) ≤ (13 : ℝ) / 30 * K := by
+    have h24 := two_pow_four_thirds_le
+    have hc3 : 0 ≤ (4 / 3) * (K / 8) := by positivity
+    have hmul := mul_le_mul_of_nonneg_left h24 hc3
+    -- hmul : (4/3)*(K/8)*2^(4/3) ≤ (4/3)*(K/8)*(13/5)
+    have hstep : (4 / 3) * (13 / 5) * (K / 8) = 13 / 30 * K := by norm_num; ring
+    nlinarith [hmul, hstep]
+  calc
+    2 * K ^ ((4 : ℝ)⁻¹) * Real.log (16 * K) ≤ (4 / 3) * (2 : ℝ) ^ ((4 : ℝ) / 3) * K ^ ((7 : ℝ) / 12) := by
+      rwa [hprod] at h1
+    _ ≤ (4 / 3) * (2 : ℝ) ^ ((4 : ℝ) / 3) * (K / 8) := h2
+    _ ≤ (13 : ℝ) / 30 * K := h3
+
+/-- The `(2/3)·(16K)^{1/6}·ln(16K)` term at `u = 16K` is `≤ (16/9)·√K`. -/
+lemma farG16_t2_bound {K : ℝ} (hK256 : 256 ≤ K) :
+    (2 / 3) * ((2 : ℝ) ^ ((2 : ℝ) / 3) * K ^ ((6 : ℝ)⁻¹) * Real.log (16 * K))
+      ≤ (16 : ℝ) / 9 * Real.sqrt K := by
+  have hK : 0 < K := by linarith
+  have hK1 : 1 ≤ K := by linarith
+  have hlog := log16K_le_two_thirds_cuberoot16K hK256
+  have hc : 0 ≤ (2 / 3) * ((2 : ℝ) ^ ((2 : ℝ) / 3) * K ^ ((6 : ℝ)⁻¹)) := by positivity
+  have h1 : (2 / 3) * ((2 : ℝ) ^ ((2 : ℝ) / 3) * K ^ ((6 : ℝ)⁻¹) * Real.log (16 * K))
+      ≤ (2 / 3) * ((2 : ℝ) ^ ((2 : ℝ) / 3) * K ^ ((6 : ℝ)⁻¹) * ((2 / 3) * (2 : ℝ) ^ ((4 : ℝ) / 3) * K ^ ((3 : ℝ)⁻¹))) := by
+    have hmul := mul_le_mul_of_nonneg_left hlog hc
+    -- hmul : (2/3)*X*log ≤ (2/3)*X*((2/3)*2^(4/3)*K^(1/3))
+    nlinarith [hmul]
+  have hKmul : K ^ ((6 : ℝ)⁻¹) * K ^ ((3 : ℝ)⁻¹) = Real.sqrt K := rpow_16_mul_13 hK
+  have h2mul : (2 : ℝ) ^ ((2 : ℝ) / 3) * (2 : ℝ) ^ ((4 : ℝ) / 3) = 4 := rpow_23_mul_43
+  have hrew : (2 / 3) * ((2 : ℝ) ^ ((2 : ℝ) / 3) * K ^ ((6 : ℝ)⁻¹) * ((2 / 3) * (2 : ℝ) ^ ((4 : ℝ) / 3) * K ^ ((3 : ℝ)⁻¹)))
+      = (16 : ℝ) / 9 * Real.sqrt K := by
+    calc
+      (2 / 3) * ((2 : ℝ) ^ ((2 : ℝ) / 3) * K ^ ((6 : ℝ)⁻¹) * ((2 / 3) * (2 : ℝ) ^ ((4 : ℝ) / 3) * K ^ ((3 : ℝ)⁻¹)))
+          = (4 / 9) * ((2 : ℝ) ^ ((2 : ℝ) / 3) * (2 : ℝ) ^ ((4 : ℝ) / 3)) * (K ^ ((6 : ℝ)⁻¹) * K ^ ((3 : ℝ)⁻¹)) := by
+            ring
+      _ = (4 / 9) * 4 * Real.sqrt K := by rw [h2mul, hKmul]
+      _ = (16 : ℝ) / 9 * Real.sqrt K := by norm_num
+  rwa [hrew] at h1
+
+/-- The `(2/5)·(16K)^{1/10}·ln(16K)` term at `u = 16K` is `≤ (208/225)·√K`. -/
+lemma farG16_t3_bound {K : ℝ} (hK256 : 256 ≤ K) :
+    (2 / 5) * ((2 : ℝ) ^ ((2 : ℝ) / 5) * K ^ ((10 : ℝ)⁻¹) * Real.log (16 * K))
+      ≤ (208 : ℝ) / 225 * Real.sqrt K := by
+  have hK : 0 < K := by linarith
+  have hK1 : 1 ≤ K := by linarith
+  have hlog := log16K_le_two_thirds_cuberoot16K hK256
+  have hc : 0 ≤ (2 / 5) * ((2 : ℝ) ^ ((2 : ℝ) / 5) * K ^ ((10 : ℝ)⁻¹)) := by positivity
+  have h1 : (2 / 5) * ((2 : ℝ) ^ ((2 : ℝ) / 5) * K ^ ((10 : ℝ)⁻¹) * Real.log (16 * K))
+      ≤ (2 / 5) * ((2 : ℝ) ^ ((2 : ℝ) / 5) * K ^ ((10 : ℝ)⁻¹) * ((2 / 3) * (2 : ℝ) ^ ((4 : ℝ) / 3) * K ^ ((3 : ℝ)⁻¹))) := by
+    have hmul := mul_le_mul_of_nonneg_left hlog hc
+    nlinarith [hmul]
+  have hKm : K ^ ((10 : ℝ)⁻¹) * K ^ ((3 : ℝ)⁻¹) = K ^ ((13 : ℝ) / 30) := rpow_110_mul_13 hK
+  have h2m : (2 : ℝ) ^ ((2 : ℝ) / 5) * (2 : ℝ) ^ ((4 : ℝ) / 3) = (2 : ℝ) ^ ((26 : ℝ) / 15) := rpow_25_mul_43
+  have hrew : (2 / 5) * ((2 : ℝ) ^ ((2 : ℝ) / 5) * K ^ ((10 : ℝ)⁻¹) * ((2 / 3) * (2 : ℝ) ^ ((4 : ℝ) / 3) * K ^ ((3 : ℝ)⁻¹)))
+      = (4 / 15) * (2 : ℝ) ^ ((26 : ℝ) / 15) * K ^ ((13 : ℝ) / 30) := by
+    calc
+      (2 / 5) * ((2 : ℝ) ^ ((2 : ℝ) / 5) * K ^ ((10 : ℝ)⁻¹) * ((2 / 3) * (2 : ℝ) ^ ((4 : ℝ) / 3) * K ^ ((3 : ℝ)⁻¹)))
+          = (4 / 15) * ((2 : ℝ) ^ ((2 : ℝ) / 5) * (2 : ℝ) ^ ((4 : ℝ) / 3)) * (K ^ ((10 : ℝ)⁻¹) * K ^ ((3 : ℝ)⁻¹)) := by
+            ring
+      _ = (4 / 15) * (2 : ℝ) ^ ((26 : ℝ) / 15) * K ^ ((13 : ℝ) / 30) := by rw [h2m, hKm]
+  rw [hrew] at h1
+  have hKsq : K ^ ((13 : ℝ) / 30) ≤ Real.sqrt K := by
+    apply rpow_le_sqrt hK1
+    norm_num
+  have hsq0 : 0 ≤ Real.sqrt K := by positivity
+  have hprod := mul_le_mul rpow_2615_le hKsq (by positivity : (0 : ℝ) ≤ K ^ ((13 : ℝ) / 30)) (by norm_num : (0 : ℝ) ≤ 52 / 15)
+  -- hprod : 2^(26/15) * K^(13/30) ≤ (52/15) * sqrt K
+  have hval : (4 / 15 : ℝ) * (52 / 15 : ℝ) = 208 / 225 := by norm_num
+  have h2 : (4 / 15) * (2 : ℝ) ^ ((26 : ℝ) / 15) * K ^ ((13 : ℝ) / 30)
+      ≤ (4 / 15) * (52 / 15) * Real.sqrt K := by
+    have hc2 : (0 : ℝ) ≤ 4 / 15 := by norm_num
+    have hm := mul_le_mul_of_nonneg_left hprod hc2
+    -- hm : (4/15)*(2^(26/15)*K^(13/30)) ≤ (4/15)*((52/15)*sqrt K)
+    nlinarith [hm]
+  have h3 : (4 / 15) * (52 / 15) * Real.sqrt K = (208 / 225) * Real.sqrt K := by
+    rw [hval]
+  nlinarith [h1, h2, h3]
+
+/-- **E1**: `farG K (16K) > 0` for `K ≥ 256`. -/
+lemma farG_sixteenK_pos {K : ℝ} (hK256 : 256 ≤ K) : 0 < farG K (16 * K) := by
+  have hK : 0 < K := by linarith
+  have hKge0 : 0 ≤ K := hK.le
+  have hdiv : (16 * K) / (4 * K) = 4 := by
+    calc
+      (16 * K) / (4 * K) = (16 / 4) * (K / K) := by ring
+      _ = (16 / 4) * 1 := by rw [div_self hK.ne']
+      _ = 4 := by norm_num
+  have hs16 : Real.sqrt (16 : ℝ) = 4 := by
+    rw [show (16 : ℝ) = (4 : ℝ) ^ (2 : ℕ) by norm_num]
+    rw [Real.sqrt_sq_eq_abs]
+    norm_num
+  have hsqrt : Real.sqrt (16 * K) = 4 * Real.sqrt K := by
+    rw [Real.sqrt_mul (by norm_num : (0 : ℝ) ≤ 16)]
+    rw [hs16]
+  have hE : farG K (16 * K)
+      = K * Real.log 4
+        - Real.log 4 * (4 * Real.sqrt K + (2 : ℝ) ^ ((4 : ℝ) / 3) * K ^ ((3 : ℝ)⁻¹)
+            + (2 : ℝ) ^ ((4 : ℝ) / 5) * K ^ ((5 : ℝ)⁻¹))
+        - 2 * K ^ ((4 : ℝ)⁻¹) * Real.log (16 * K)
+        - (2 / 3) * ((2 : ℝ) ^ ((2 : ℝ) / 3) * K ^ ((6 : ℝ)⁻¹) * Real.log (16 * K))
+        - (2 / 5) * ((2 : ℝ) ^ ((2 : ℝ) / 5) * K ^ ((10 : ℝ)⁻¹) * Real.log (16 * K)) := by
+    unfold farG
+    rw [hdiv, hsqrt, rpow16_mul_third hKge0, rpow16_mul_fifth hKge0, rpow16_mul_quarter hKge0,
+      rpow16_mul_sixth hKge0, rpow16_mul_tenth hKge0]
+  have h1 := farG16_sqrt_group_bound hK256
+  have h2 := farG16_t1_bound hK256
+  have h3 := farG16_t2_bound hK256
+  have h4 := farG16_t3_bound hK256
+  have hsqrt16 : Real.sqrt K ≤ K / 16 := sqrt_le_sixteenth_self hK256
+  have hlower : K * Real.log 4 - Real.log 4 * ((167 : ℝ) / 20) * Real.sqrt K
+        - (13 : ℝ) / 30 * K - (16 : ℝ) / 9 * Real.sqrt K - (208 : ℝ) / 225 * Real.sqrt K
+        ≤ farG K (16 * K) := by
+    rw [hE]
+    nlinarith [h1, h2, h3, h4]
+  -- final: prove the lower bound positive
+  have hBnonneg : 0 ≤ K - (167 : ℝ) / 20 * Real.sqrt K := by
+    have hA : (153 : ℝ) / 320 * K ≤ K - (167 : ℝ) / 20 * Real.sqrt K := by
+      nlinarith [hsqrt16]
+    exact le_trans (by positivity : 0 ≤ (153 : ℝ) / 320 * K) hA
+  have hmain1 : (4 : ℝ) / 3 * (K - (167 : ℝ) / 20 * Real.sqrt K)
+      ≤ Real.log 4 * (K - (167 : ℝ) / 20 * Real.sqrt K) := by
+    have hdiff : 0 ≤ Real.log 4 - 4 / 3 := by linarith [log4_ge_four_thirds]
+    have hprod := mul_nonneg hdiff hBnonneg
+    nlinarith
+  have hmain2 : (4 : ℝ) / 3 * (153 : ℝ) / 320 * K
+      ≤ (4 : ℝ) / 3 * (K - (167 : ℝ) / 20 * Real.sqrt K) := by
+    nlinarith [hsqrt16]
+  have hfin : (0 : ℝ) < K * Real.log 4 - Real.log 4 * ((167 : ℝ) / 20) * Real.sqrt K
+        - (13 : ℝ) / 30 * K - (16 : ℝ) / 9 * Real.sqrt K - (208 : ℝ) / 225 * Real.sqrt K := by
+    have hpos : (0 : ℝ) < (4 / 3) * (153 : ℝ) / 320 - 13 / 30 - (16 / 9) / 16 - (208 / 225) / 16 := by norm_num
+    nlinarith [hmain1, hmain2, hsqrt16, hpos, (by positivity : 0 < K)]
+  exact lt_of_lt_of_le hfin hlower
+
+-- ============ E2 helpers ============
+
+/-- `(K·K)^a = K^(2a)` for `0 < K`. -/
+lemma sq_rpow {K : ℝ} (hK : 0 < K) (a : ℝ) : (K * K) ^ a = K ^ (2 * a) := by
+  rw [Real.mul_rpow hK.le hK.le]
+  rw [← Real.rpow_add hK]
+  congr 1
+  ring
+
+/-- `(K·K)^(1/3) = K^(2/3)`. -/
+lemma sq_rpow_third {K : ℝ} (hK : 0 < K) : (K * K) ^ ((3 : ℝ)⁻¹) = K ^ ((2 : ℝ) / 3) := by
+  rw [sq_rpow hK ((3 : ℝ)⁻¹)]
+  have h : 2 * (3 : ℝ)⁻¹ = (2 : ℝ) / 3 := by norm_num
+  rw [h]
+
+/-- `(K·K)^(1/5) = K^(2/5)`. -/
+lemma sq_rpow_fifth {K : ℝ} (hK : 0 < K) : (K * K) ^ ((5 : ℝ)⁻¹) = K ^ ((2 : ℝ) / 5) := by
+  rw [sq_rpow hK ((5 : ℝ)⁻¹)]
+  have h : 2 * (5 : ℝ)⁻¹ = (2 : ℝ) / 5 := by norm_num
+  rw [h]
+
+/-- `(K·K)^(1/4) = K^(1/2)`. -/
+lemma sq_rpow_quarter {K : ℝ} (hK : 0 < K) : (K * K) ^ ((4 : ℝ)⁻¹) = K ^ ((1 : ℝ) / 2) := by
+  rw [sq_rpow hK ((4 : ℝ)⁻¹)]
+  congr 1
+  norm_num
+
+/-- `(K·K)^(1/6) = K^(1/3)`. -/
+lemma sq_rpow_sixth {K : ℝ} (hK : 0 < K) : (K * K) ^ ((6 : ℝ)⁻¹) = K ^ ((1 : ℝ) / 3) := by
+  rw [sq_rpow hK ((6 : ℝ)⁻¹)]
+  congr 1
+  norm_num
+
+/-- `(K·K)^(1/10) = K^(1/5)`. -/
+lemma sq_rpow_tenth {K : ℝ} (hK : 0 < K) : (K * K) ^ ((10 : ℝ)⁻¹) = K ^ ((1 : ℝ) / 5) := by
+  rw [sq_rpow hK ((10 : ℝ)⁻¹)]
+  congr 1
+  norm_num
+
+/-- `x^(5/6) ≤ x/2` for `x ≥ 64`. -/
+lemma rpow_five_sixths_le_div_two {x : ℝ} (hx : 64 ≤ x) : x ^ ((5 : ℝ) / 6) ≤ x / 2 := by
+  refine rpow_le_self_div (by linarith : 0 < x) ((5 : ℝ) / 6) 2 (by norm_num) ?_
+  have hpow := Real.rpow_le_rpow (by norm_num : (0 : ℝ) ≤ 64) hx (by norm_num : (0 : ℝ) ≤ (1 : ℝ) / 6)
+  have h64 : (64 : ℝ) ^ ((1 : ℝ) / 6) = 2 := by
+    norm_num [Real.rpow_natCast, Real.rpow_mul]
+  have hxr : (2 : ℝ) ≤ x ^ ((1 : ℝ) / 6) := by
+    rwa [h64] at hpow
+  simpa [show 1 - (5 : ℝ) / 6 = (1 : ℝ) / 6 by norm_num] using hxr
+
+/-- `x^(7/10) ≤ x/4` for `x ≥ 256`. -/
+lemma rpow_seven_tenths_le_div_four {x : ℝ} (hx : 256 ≤ x) : x ^ ((7 : ℝ) / 10) ≤ x / 4 := by
+  refine rpow_le_self_div (by linarith : 0 < x) ((7 : ℝ) / 10) 4 (by norm_num) ?_
+  have hpow := Real.rpow_le_rpow (by norm_num : (0 : ℝ) ≤ 256) hx (by norm_num : (0 : ℝ) ≤ (3 : ℝ) / 10)
+  have h256 : (256 : ℝ) ^ ((3 : ℝ) / 10) = (2 : ℝ) ^ ((12 : ℝ) / 5) := by
+    rw [show (256 : ℝ) = (2 : ℝ) ^ (8 : ℕ) by norm_num]
+    rw [← Real.rpow_natCast]
+    rw [← Real.rpow_mul (by norm_num : (0 : ℝ) ≤ 2)]
+    norm_num
+  have h4 : (4 : ℝ) ≤ (2 : ℝ) ^ ((12 : ℝ) / 5) := by
+    have hL : (4 : ℝ) ^ (5 : ℝ) = 1024 := by norm_num
+    have hR : ((2 : ℝ) ^ ((12 : ℝ) / 5)) ^ (5 : ℝ) = 4096 := by
+      rw [← Real.rpow_mul (by norm_num : (0 : ℝ) ≤ 2)]
+      norm_num
+    have hle : (4 : ℝ) ^ (5 : ℝ) ≤ ((2 : ℝ) ^ ((12 : ℝ) / 5)) ^ (5 : ℝ) := by
+      rw [hL, hR]
+      norm_num
+    exact (Real.rpow_le_rpow_iff (by norm_num : (0 : ℝ) ≤ 4)
+        (by positivity : (0 : ℝ) ≤ 2 ^ ((12 : ℝ) / 5)) (by norm_num : (0 : ℝ) < 5)).mp hle
+  have hxr : (2 : ℝ) ^ ((12 : ℝ) / 5) ≤ x ^ ((3 : ℝ) / 10) := by
+    rwa [h256] at hpow
+  have h4x : (4 : ℝ) ≤ x ^ ((3 : ℝ) / 10) := h4.trans hxr
+  simpa [show 1 - (7 : ℝ) / 10 = (3 : ℝ) / 10 by norm_num] using h4x
+
+/-- `log(K/4) ≥ 4` for `K ≥ 256`. -/
+lemma log_div_four_ge_four {K : ℝ} (hK256 : 256 ≤ K) : (4 : ℝ) ≤ Real.log (K / 4) := by
+  have h64 : (64 : ℝ) ≤ K / 4 := by nlinarith
+  have hle : Real.log 64 ≤ Real.log (K / 4) :=
+    Real.log_le_log (by norm_num : (0 : ℝ) < 64) h64
+  have hlog64 : Real.log 64 = 6 * Real.log 2 := by
+    rw [show (64 : ℝ) = (2 : ℝ) ^ (6 : ℕ) by norm_num, Real.log_pow]
+    norm_num
+  have h4 : (4 : ℝ) ≤ Real.log 64 := by
+    rw [hlog64]
+    nlinarith [two_thirds_le_log_two]
+  exact h4.trans hle
+
+/-- **E2**: `farG K (K²) > 0` for `K ≥ 256`. -/
+lemma farG_sqK_pos {K : ℝ} (hK256 : 256 ≤ K) : 0 < farG K (K * K) := by
+  have hK : 0 < K := by linarith
+  have hKge0 : 0 ≤ K := hK.le
+  have hK128 : 128 ≤ K := by linarith
+  have hdiv : (K * K) / (4 * K) = K / 4 := by
+    calc
+      (K * K) / (4 * K) = (K / 4) * (K / K) := by ring
+      _ = (K / 4) * 1 := by rw [div_self hK.ne']
+      _ = K / 4 := by ring
+  have hsqrt : Real.sqrt (K * K) = K := by
+    rw [show K * K = K ^ 2 by ring]
+    rw [Real.sqrt_sq_eq_abs]
+    rw [abs_of_nonneg hKge0]
+  have hlog : Real.log (K * K) = 2 * Real.log K := by
+    rw [Real.log_mul hK.ne' hK.ne']
+    ring
+  have h13 := sq_rpow_third hK
+  have h15 := sq_rpow_fifth hK
+  have h14 := sq_rpow_quarter hK
+  have h16 := sq_rpow_sixth hK
+  have h110 := sq_rpow_tenth hK
+  have hE : farG K (K * K)
+      = K * Real.log (K / 4)
+        - Real.log 4 * (K + K ^ ((2 : ℝ) / 3) + K ^ ((2 : ℝ) / 5))
+        - 2 * K ^ ((1 : ℝ) / 2) * Real.log K
+        - (4 / 3) * (K ^ ((1 : ℝ) / 3) * Real.log K)
+        - (4 / 5) * (K ^ ((1 : ℝ) / 5) * Real.log K) := by
+    unfold farG
+    rw [hdiv, hsqrt, hlog, h13, h15, h14, h16, h110]
+    ring
+  have hA : Real.log 4 * (K + K ^ ((2 : ℝ) / 3) + K ^ ((2 : ℝ) / 5))
+      ≤ Real.log 4 * ((101 : ℝ) / 80) * K := by
+    have h23 : K ^ ((2 : ℝ) / 3) ≤ K / 5 := rpow_two_thirds_le_div_five (by linarith : 125 ≤ K)
+    have h25 : K ^ ((2 : ℝ) / 5) ≤ K / 16 := rpow_two_fifths_le_div_sixteen (by linarith : 128 ≤ K)
+    have hlg : 0 ≤ Real.log 4 := le_of_lt (Real.log_pos (by norm_num : (1 : ℝ) < 4))
+    have hb : K + K ^ ((2 : ℝ) / 3) + K ^ ((2 : ℝ) / 5) ≤ (101 : ℝ) / 80 * K := by
+      nlinarith [h23, h25]
+    have hmul := mul_le_mul_of_nonneg_left hb hlg
+    nlinarith [hmul]
+  have hB : 2 * K ^ ((1 : ℝ) / 2) * Real.log K ≤ (4 : ℝ) / 3 * K := by
+    have hlogK : Real.log K ≤ (2 / 3 : ℝ) * Real.sqrt K := far_log_le_two_thirds_sqrt hK128
+    have hc : 0 ≤ 2 * K ^ ((1 : ℝ) / 2) := by positivity
+    have hmul := mul_le_mul_of_nonneg_left hlogK hc
+    rw [Real.sqrt_eq_rpow] at hmul
+    have hsq : K ^ ((1 : ℝ) / 2) * K ^ ((1 : ℝ) / 2) = K := by
+      rw [← Real.rpow_add hK]
+      have h : (1 : ℝ) / 2 + (1 : ℝ) / 2 = 1 := by norm_num
+      rw [h]
+      rw [Real.rpow_one]
+    have hnorm : 2 * K ^ ((1 : ℝ) / 2) * ((2 / 3 : ℝ) * Real.sqrt K) = (4 / 3) * K := by
+      rw [Real.sqrt_eq_rpow]
+      have hstep : 2 * K ^ ((1 : ℝ) / 2) * ((2 / 3 : ℝ) * K ^ ((1 : ℝ) / 2))
+          = (4 / 3) * (K ^ ((1 : ℝ) / 2) * K ^ ((1 : ℝ) / 2)) := by ring
+      rw [hstep, hsq]
+    nlinarith [hmul, hnorm]
+  have hC : (4 : ℝ) / 3 * (K ^ ((1 : ℝ) / 3) * Real.log K) ≤ (4 : ℝ) / 9 * K := by
+    have hlogK : Real.log K ≤ (2 / 3 : ℝ) * Real.sqrt K := far_log_le_two_thirds_sqrt hK128
+    have hc : 0 ≤ (4 / 3) * K ^ ((1 : ℝ) / 3) := by positivity
+    have hmul := mul_le_mul_of_nonneg_left hlogK hc
+    have hsq : Real.sqrt K ^ 2 = K := Real.sq_sqrt hKge0
+    have h56 : K ^ ((5 : ℝ) / 6) ≤ K / 2 := rpow_five_sixths_le_div_two (by linarith : 64 ≤ K)
+    have hstep : (8 : ℝ) / 9 * K ^ ((5 : ℝ) / 6) ≤ (4 : ℝ) / 9 * K := by
+      nlinarith [h56]
+    have hKmul : K ^ ((1 : ℝ) / 3) * K ^ ((1 : ℝ) / 2) = K ^ ((5 : ℝ) / 6) := by
+      rw [← Real.rpow_add hK]
+      congr 1
+      norm_num
+    have hnorm : (4 / 3) * K ^ ((1 : ℝ) / 3) * ((2 / 3 : ℝ) * Real.sqrt K) = (8 / 9) * K ^ ((5 : ℝ) / 6) := by
+      rw [Real.sqrt_eq_rpow]
+      rw [← hKmul]
+      ring
+    nlinarith [hmul, hnorm, hstep]
+  have hD : (4 : ℝ) / 5 * (K ^ ((1 : ℝ) / 5) * Real.log K) ≤ (2 : ℝ) / 15 * K := by
+    have hlogK : Real.log K ≤ (2 / 3 : ℝ) * Real.sqrt K := far_log_le_two_thirds_sqrt hK128
+    have hc : 0 ≤ (4 / 5) * K ^ ((1 : ℝ) / 5) := by positivity
+    have hmul := mul_le_mul_of_nonneg_left hlogK hc
+    have h710 : K ^ ((7 : ℝ) / 10) ≤ K / 4 := rpow_seven_tenths_le_div_four hK256
+    have hstep : (8 : ℝ) / 15 * K ^ ((7 : ℝ) / 10) ≤ (2 : ℝ) / 15 * K := by
+      nlinarith [h710]
+    have hKmul : K ^ ((1 : ℝ) / 5) * K ^ ((1 : ℝ) / 2) = K ^ ((7 : ℝ) / 10) := by
+      rw [← Real.rpow_add hK]
+      congr 1
+      norm_num
+    have hnorm : (4 / 5) * K ^ ((1 : ℝ) / 5) * ((2 / 3 : ℝ) * Real.sqrt K) = (8 / 15) * K ^ ((7 : ℝ) / 10) := by
+      rw [Real.sqrt_eq_rpow]
+      rw [← hKmul]
+      ring
+    nlinarith [hmul, hnorm, hstep]
+  have hlog4ge : (4 : ℝ) ≤ Real.log (K / 4) := log_div_four_ge_four hK256
+  have hpos : (0 : ℝ) < 4 - (3 / 2) * (101 / 80) - 4 / 3 - 4 / 9 - 2 / 15 := by norm_num
+  have hfin : (0 : ℝ) < K * Real.log (K / 4) - Real.log 4 * ((101 : ℝ) / 80) * K
+        - (4 : ℝ) / 3 * K - (4 : ℝ) / 9 * K - (2 : ℝ) / 15 * K := by
+    nlinarith [hlog4ge, log_four_le_three_halves, hpos, (by positivity : 0 < K)]
+  have hlower : K * Real.log (K / 4) - Real.log 4 * ((101 : ℝ) / 80) * K
+        - (4 : ℝ) / 3 * K - (4 : ℝ) / 9 * K - (2 : ℝ) / 15 * K ≤ farG K (K * K) := by
+    rw [hE]
+    nlinarith [hA, hB, hC, hD]
+  exact lt_of_lt_of_le hfin hlower
+
+-- ============ concavity of farG + global positivity ============
+
+/-- `farG K ·` is strictly concave on `[16K, K²]` for `K ≥ 128`. -/
+lemma concaveOn_farG {K : ℝ} (hK128 : 128 ≤ K) :
+    StrictConcaveOn ℝ (Set.Icc (16 * K) (K * K)) (fun x : ℝ => farG K x) := by
+  refine strictConcaveOn_of_deriv2_neg' (convex_Icc (16 * K) (K * K)) ?_ ?_
+  · have hcont : ContinuousOn (fun x : ℝ => farG K x) (Set.Ioi (0 : ℝ)) := by
+      intro x hx
+      have hx0 : x ≠ 0 := ne_of_gt hx
+      have hlog : ContinuousAt (fun x : ℝ => Real.log (x / (4 * K))) x := by
+        refine ContinuousAt.log ?_ ?_
+        · exact (continuousAt_id.div_const (4 * K))
+        · have : x / (4 * K) ≠ 0 := by positivity
+          exact this
+      have hA : ContinuousAt (fun x : ℝ => K * Real.log (x / (4 * K))) x := hlog.const_mul K
+      have hB : ContinuousAt (fun x : ℝ => Real.log 4 * (Real.sqrt x + x ^ ((3 : ℝ)⁻¹) + x ^ ((5 : ℝ)⁻¹))) x := by
+        fun_prop
+      have hC : ContinuousAt (fun x : ℝ => x ^ ((4 : ℝ)⁻¹) * Real.log x) x := by
+        fun_prop
+      have hD : ContinuousAt (fun x : ℝ => x ^ ((6 : ℝ)⁻¹) * Real.log x) x := by
+        fun_prop
+      have hE : ContinuousAt (fun x : ℝ => x ^ ((10 : ℝ)⁻¹) * Real.log x) x := by
+        fun_prop
+      have hmain : ContinuousAt (fun x : ℝ => farG K x) x := by
+        unfold farG
+        exact (((hA.sub hB).sub hC).sub (hD.const_mul (2 / 3 : ℝ))).sub (hE.const_mul (2 / 5 : ℝ))
+      exact hmain.continuousWithinAt
+    refine hcont.mono ?_
+    intro x hx
+    rw [mem_Icc] at hx
+    exact (by linarith : (0 : ℝ) < 16 * K).trans_le hx.1
+  · intro x hx
+    have hx16 : 16 * K ≤ x := (mem_Icc.mp hx).1
+    have hx2 : x ≤ K * K := (mem_Icc.mp hx).2
+    exact deriv2_farG_neg hK128 hx16 hx2
+
+/-- `farG K u > 0` for all `16K ≤ u ≤ K²`, `K ≥ 256`. -/
+lemma farG_pos {K u : ℝ} (hK256 : 256 ≤ K) (h16 : 16 * K ≤ u) (hu2 : u ≤ K * K) :
+    0 < farG K u := by
+  have hab : 16 * K < K * K := by nlinarith
+  have hc := concave_positive_of_positive_endpoints hab (concaveOn_farG (by linarith : 128 ≤ K)).concaveOn
+      (farG_sixteenK_pos hK256) (farG_sqK_pos hK256) u (by exact ⟨h16, hu2⟩)
+  exact hc
+

@@ -958,11 +958,62 @@ lemma psi_sum_bound {n : ℝ} (hn : 1 ≤ n) :
       + (2 / 5) * n ^ ((10 : ℝ)⁻¹) * Real.log n := by
   nlinarith [psi_sqrt_bound hn, psi_cube_bound hn, psi_fifth_bound hn]
 
-lemma far_ineq {k n : ℕ} (hk : 128 ≤ k) (h16 : 16 * k ≤ n) (hn : n < k * k) :
+lemma far_ineq {k n : ℕ} (hk : 256 ≤ k) (h16 : 16 * k ≤ n) (hn : n < k * k) :
     (4 : ℝ) ^ k * Real.exp (Chebyshev.psi (Real.sqrt (n : ℝ)) +
       Chebyshev.psi ((n : ℝ) ^ ((3 : ℝ)⁻¹)) + Chebyshev.psi ((n : ℝ) ^ ((5 : ℝ)⁻¹))) <
         ((n : ℝ) / (k : ℝ)) ^ k := by
-  sorry
+  have hK256 : (256 : ℝ) ≤ (k : ℝ) := by exact_mod_cast hk
+  have h16K : (16 : ℝ) * (k : ℝ) ≤ (n : ℝ) := by exact_mod_cast h16
+  have hN2 : (n : ℝ) ≤ (k : ℝ) * (k : ℝ) := by
+    have hlt : (n : ℝ) < (k : ℝ) * (k : ℝ) := by exact_mod_cast hn
+    exact le_of_lt hlt
+  have hfar : 0 < farG (k : ℝ) (n : ℝ) := farG_pos hK256 h16K hN2
+  have hn1 : (1 : ℝ) ≤ (n : ℝ) := by exact_mod_cast (by omega : 1 ≤ n)
+  have hpsi := psi_sum_bound (n := (n : ℝ)) hn1
+  have hA : Real.log ((4 : ℝ) ^ k * Real.exp (Chebyshev.psi (Real.sqrt (n : ℝ)) +
+      Chebyshev.psi ((n : ℝ) ^ ((3 : ℝ)⁻¹)) + Chebyshev.psi ((n : ℝ) ^ ((5 : ℝ)⁻¹))))
+      = (k : ℝ) * Real.log 4 + (Chebyshev.psi (Real.sqrt (n : ℝ)) +
+      Chebyshev.psi ((n : ℝ) ^ ((3 : ℝ)⁻¹)) + Chebyshev.psi ((n : ℝ) ^ ((5 : ℝ)⁻¹))) := by
+    rw [Real.log_mul (pow_ne_zero k (by norm_num : (4 : ℝ) ≠ 0)) (Real.exp_ne_zero _)]
+    rw [Real.log_pow, Real.log_exp]
+  have hB : Real.log (((n : ℝ) / (k : ℝ)) ^ k) = (k : ℝ) * Real.log ((n : ℝ) / (k : ℝ)) := by
+    rw [Real.log_pow]
+  have hlog4 : Real.log ((n : ℝ) / (4 * (k : ℝ))) = Real.log ((n : ℝ) / (k : ℝ)) - Real.log 4 := by
+    have hdiv : (n : ℝ) / (4 * (k : ℝ)) = ((n : ℝ) / (k : ℝ)) / 4 := by ring
+    rw [hdiv]
+    rw [Real.log_div (by positivity : (n : ℝ) / (k : ℝ) ≠ 0) (by norm_num : (4 : ℝ) ≠ 0)]
+  have hfarg : farG (k : ℝ) (n : ℝ) = (k : ℝ) * Real.log ((n : ℝ) / (k : ℝ))
+      - ((k : ℝ) * Real.log 4
+        + Real.log 4 * (Real.sqrt (n : ℝ) + (n : ℝ) ^ ((3 : ℝ)⁻¹) + (n : ℝ) ^ ((5 : ℝ)⁻¹))
+        + (n : ℝ) ^ ((4 : ℝ)⁻¹) * Real.log (n : ℝ)
+        + (2 / 3) * ((n : ℝ) ^ ((6 : ℝ)⁻¹) * Real.log (n : ℝ))
+        + (2 / 5) * ((n : ℝ) ^ ((10 : ℝ)⁻¹) * Real.log (n : ℝ))) := by
+    unfold farG
+    rw [hlog4]
+    ring
+  have hgt : (k : ℝ) * Real.log 4
+      + Real.log 4 * (Real.sqrt (n : ℝ) + (n : ℝ) ^ ((3 : ℝ)⁻¹) + (n : ℝ) ^ ((5 : ℝ)⁻¹))
+      + (n : ℝ) ^ ((4 : ℝ)⁻¹) * Real.log (n : ℝ)
+      + (2 / 3) * ((n : ℝ) ^ ((6 : ℝ)⁻¹) * Real.log (n : ℝ))
+      + (2 / 5) * ((n : ℝ) ^ ((10 : ℝ)⁻¹) * Real.log (n : ℝ))
+      < (k : ℝ) * Real.log ((n : ℝ) / (k : ℝ)) := by
+    have hfar' : 0 < (k : ℝ) * Real.log ((n : ℝ) / (k : ℝ))
+        - ((k : ℝ) * Real.log 4
+          + Real.log 4 * (Real.sqrt (n : ℝ) + (n : ℝ) ^ ((3 : ℝ)⁻¹) + (n : ℝ) ^ ((5 : ℝ)⁻¹))
+          + (n : ℝ) ^ ((4 : ℝ)⁻¹) * Real.log (n : ℝ)
+          + (2 / 3) * ((n : ℝ) ^ ((6 : ℝ)⁻¹) * Real.log (n : ℝ))
+          + (2 / 5) * ((n : ℝ) ^ ((10 : ℝ)⁻¹) * Real.log (n : ℝ))) := by
+      rwa [hfarg] at hfar
+    nlinarith
+  have hloglt : Real.log ((4 : ℝ) ^ k * Real.exp (Chebyshev.psi (Real.sqrt (n : ℝ)) +
+      Chebyshev.psi ((n : ℝ) ^ ((3 : ℝ)⁻¹)) + Chebyshev.psi ((n : ℝ) ^ ((5 : ℝ)⁻¹))))
+      < Real.log (((n : ℝ) / (k : ℝ)) ^ k) := by
+    rw [hA, hB]
+    nlinarith [hpsi, hgt]
+  have hApos : 0 < (4 : ℝ) ^ k * Real.exp (Chebyshev.psi (Real.sqrt (n : ℝ)) +
+      Chebyshev.psi ((n : ℝ) ^ ((3 : ℝ)⁻¹)) + Chebyshev.psi ((n : ℝ) ^ ((5 : ℝ)⁻¹))) := by positivity
+  have hBpos : 0 < ((n : ℝ) / (k : ℝ)) ^ k := by positivity
+  exact (Real.log_lt_log_iff hApos hBpos).mp hloglt
 
 lemma mid_ineq {k n : ℕ} (hk : 256 ≤ k) (h4 : 4 * k ≤ n) (h16 : n < 16 * k) :
     (4 : ℝ) ^ k * ((n : ℝ) / 2) ^ (Nat.primeCounting (Nat.sqrt n) : ℝ) <
@@ -1279,27 +1330,6 @@ lemma choose_ge_pow_div {n k : ℕ} (hk : 1 ≤ k) (h2 : 2 * k ≤ n) :
             field_simp [show (2 * (k : ℝ)) ^ k ≠ 0 by positivity]
             simpa [mul_comm, mul_left_comm, mul_assoc] using h1n
 
-lemma far_region {k n : ℕ} (hk : 128 ≤ k) (h2 : 2 * k ≤ n) (h16 : 16 * k ≤ n)
-    (hn : n < k * k) : L k n < n.choose k := by
-  -- L = k#·R ≤ 4^k·e^cp
-  have hL : (L k n : ℝ) ≤ (4 : ℝ) ^ k * Real.exp (Chebyshev.psi (Real.sqrt (n : ℝ)) +
-      Chebyshev.psi ((n : ℝ) ^ ((3 : ℝ)⁻¹)) + Chebyshev.psi ((n : ℝ) ^ ((5 : ℝ)⁻¹))) := by
-    calc
-      (L k n : ℝ) = (primorial k : ℝ) * R n := L_eq_primorial_mul_R h2 hn
-      _ ≤ (primorial k : ℝ) * Real.exp (Chebyshev.psi (Real.sqrt (n : ℝ)) +
-          Chebyshev.psi ((n : ℝ) ^ ((3 : ℝ)⁻¹)) + Chebyshev.psi ((n : ℝ) ^ ((5 : ℝ)⁻¹))) := by
-          exact mul_le_mul_of_nonneg_left (R_le_exp_cp (by omega : 2 ≤ n)) (by positivity)
-      _ ≤ (4 : ℝ) ^ k * Real.exp (Chebyshev.psi (Real.sqrt (n : ℝ)) +
-          Chebyshev.psi ((n : ℝ) ^ ((3 : ℝ)⁻¹)) + Chebyshev.psi ((n : ℝ) ^ ((5 : ℝ)⁻¹))) := by
-          have h1 : (primorial k : ℝ) ≤ (4 : ℝ) ^ k := by
-            exact_mod_cast (primorial_le_four_pow k)
-          exact mul_le_mul_of_nonneg_right h1 (by positivity)
-  have hC : ((n : ℝ) / (k : ℝ)) ^ k ≤ (n.choose k : ℝ) := by
-    exact choose_ge_pow (by omega : 1 ≤ k) (by omega : k ≤ n)
-  have hlt1 : (L k n : ℝ) < ((n : ℝ) / (k : ℝ)) ^ k :=
-    lt_of_le_of_lt hL (far_ineq hk h16 hn)
-  exact_mod_cast (lt_of_lt_of_le hlt1 hC)
-
 /-- Finite check: mid region `4k ≤ n < 16k` for `64 ≤ k ≤ 255`. -/
 lemma fin_mid :
     ∀ k ∈ Finset.Icc 64 255, ∀ n ∈ Finset.Icc (4 * k) (16 * k - 1),
@@ -1427,21 +1457,55 @@ lemma fin_near :
       L k n < n.choose k := by
   native_decide
 
-/-- Finite check: far region `16k ≤ n < k²` for `64 ≤ k ≤ 127`. -/
+/-- Finite check: far region `16k ≤ n < k²` for `64 ≤ k ≤ 255`. -/
 lemma fin_far :
-    ∀ k ∈ Finset.Icc 64 127, ∀ n ∈ Finset.Icc (16 * k) (k * k - 1),
+    ∀ k ∈ Finset.Icc 64 255, ∀ n ∈ Finset.Icc (16 * k) (k * k - 1),
       L k n < n.choose k := by
   native_decide
+
+lemma far_region {k n : ℕ} (hk : 128 ≤ k) (h2 : 2 * k ≤ n) (h16 : 16 * k ≤ n)
+    (hn : n < k * k) : L k n < n.choose k := by
+  by_cases h256 : k < 256
+  · -- finite head [128,255]
+    have hkk : k ∈ Finset.Icc 64 255 := by
+      rw [Finset.mem_Icc]
+      constructor <;> omega
+    have hmem : n ∈ Finset.Icc (16 * k) (k * k - 1) := by
+      rw [Finset.mem_Icc]
+      constructor <;> omega
+    exact fin_far k hkk n hmem
+  · -- analytic: k ≥ 256
+    have hk256 : 256 ≤ k := by omega
+    -- L = k#·R ≤ 4^k·e^cp
+    have hL : (L k n : ℝ) ≤ (4 : ℝ) ^ k * Real.exp (Chebyshev.psi (Real.sqrt (n : ℝ)) +
+        Chebyshev.psi ((n : ℝ) ^ ((3 : ℝ)⁻¹)) + Chebyshev.psi ((n : ℝ) ^ ((5 : ℝ)⁻¹))) := by
+      calc
+        (L k n : ℝ) = (primorial k : ℝ) * R n := L_eq_primorial_mul_R h2 hn
+        _ ≤ (primorial k : ℝ) * Real.exp (Chebyshev.psi (Real.sqrt (n : ℝ)) +
+            Chebyshev.psi ((n : ℝ) ^ ((3 : ℝ)⁻¹)) + Chebyshev.psi ((n : ℝ) ^ ((5 : ℝ)⁻¹))) := by
+            exact mul_le_mul_of_nonneg_left (R_le_exp_cp (by omega : 2 ≤ n)) (by positivity)
+        _ ≤ (4 : ℝ) ^ k * Real.exp (Chebyshev.psi (Real.sqrt (n : ℝ)) +
+            Chebyshev.psi ((n : ℝ) ^ ((3 : ℝ)⁻¹)) + Chebyshev.psi ((n : ℝ) ^ ((5 : ℝ)⁻¹))) := by
+            have h1 : (primorial k : ℝ) ≤ (4 : ℝ) ^ k := by
+              exact_mod_cast (primorial_le_four_pow k)
+            exact mul_le_mul_of_nonneg_right h1 (by positivity)
+    have hC : ((n : ℝ) / (k : ℝ)) ^ k ≤ (n.choose k : ℝ) := by
+      exact choose_ge_pow (by omega : 1 ≤ k) (by omega : k ≤ n)
+    have hlt1 : (L k n : ℝ) < ((n : ℝ) / (k : ℝ)) ^ k :=
+      lt_of_le_of_lt hL (far_ineq hk256 h16 hn)
+    exact_mod_cast (lt_of_lt_of_le hlt1 hC)
+
 
 /-- **The remaining inequality** for `n ≥ 2k ≥ 4`: the product of the largest prime
 powers `p^(⌊log_p n⌋)` for primes `p ≤ k` is `< n.choose k`, except for `(n,k) = (10,5)`.
 
 **Proven for `k ≥ 9, k ≤ √n`** (via `choose_gt_pow_primeCounting`), for **small
 `k ≤ 8`** (per-k thresholds + `native_decide`), and for **`9 ≤ k ≤ 63, k > √n`**
-(finite check `binom_gt_prod_prime_pow_fin`). The only remaining open case is
-`k ≥ 64, k > √n` (i.e. `2k ≤ n < k²`, `k ≥ 64`): the Erdős estimate, whose near-`2k`
-part `C(2k,k) > L(k,2k)` needs a Chebyshev-type bound `θ(k) ≤ c·k` with `c < ln 4`
-(strictly stronger than Mathlib's `theta_le_log4_mul_x`) — `sorry`.
+(finite check `binom_gt_prod_prime_pow_fin`). For **`k ≥ 64, k > √n`** (i.e.
+`2k ≤ n < k²`, `k ≥ 64`): the far region `16k ≤ n < k²` uses the analytic bound
+`far_ineq` (built on the concavity of `farG` in `SylvesterIneq.lean`) for `k ≥ 256`,
+with a `native_decide` head `fin_far` covering `64 ≤ k ≤ 255`; the mid region
+`4k ≤ n < 16k` uses `mid_ineq`; near regions use finite checks.
 -/
 lemma binom_gt_prod_prime_pow {n k : ℕ} (hk : 2 ≤ k) (h2k : 2 * k ≤ n)
     (hne : (n, k) ≠ (10, 5)) (hsmall : ∀ p, p ∈ (n.choose k).primeFactors → p ≤ k) :
@@ -1477,7 +1541,7 @@ lemma binom_gt_prod_prime_pow {n k : ℕ} (hk : 2 ≤ k) (h2k : 2 * k ≤ n)
             by_cases h16 : 16 * k ≤ n
             · -- far
               by_cases h128 : k < 128
-              · have hkk : k ∈ Finset.Icc 64 127 := by
+              · have hkk : k ∈ Finset.Icc 64 255 := by
                   rw [Finset.mem_Icc]
                   constructor <;> omega
                 have hmem : n ∈ Finset.Icc (16 * k) (k * k - 1) := by
@@ -1613,5 +1677,27 @@ theorem sylvester_binomial {n k : ℕ} (hk : 2 ≤ k) (h2k : 2 * k ≤ n) :
     have hgt : ∏ p ∈ primeLe k, p ^ Nat.log p n < n.choose k :=
       binom_gt_prod_prime_pow hk h2k (by exact h10) hsmall
     exact (lt_irrefl (∏ p ∈ primeLe k, p ^ Nat.log p n)) (hgt.trans_le hle)
+
+
+/-- **Sylvester (1892), full form:** the product of `k` consecutive integers each greater
+than `k` is divisible by a prime `> k`. -/
+theorem sylvester {a k : ℕ} (hak : k < a) (hk : 2 ≤ k) :
+    ∃ p : ℕ, k < p ∧ p.Prime ∧ p ∣ ∏ i ∈ Finset.range k, (a + i) := by
+  have h2k : 2 * k ≤ a + k - 1 := by omega
+  have hbin := sylvester_binomial (n := a + k - 1) hk h2k
+  rcases hbin with ⟨p, hp1, hp2, hp3⟩
+  refine ⟨p, hp1, hp2, ?_⟩
+  have hprod : ∏ i ∈ Finset.range k, (a + i) = k.factorial * (a + k - 1).choose k := by
+    have h1 : (a - 1 + 1).ascFactorial k = k.factorial * ((a - 1) + k).choose k :=
+      Nat.ascFactorial_eq_factorial_mul_choose (a - 1) k
+    have ha : a - 1 + 1 = a := by omega
+    have hk' : (a - 1) + k = a + k - 1 := by omega
+    have h2 : a.ascFactorial k = k.factorial * (a + k - 1).choose k := by
+      simpa [ha, hk'] using h1
+    have h3 : a.ascFactorial k = ∏ i ∈ Finset.range k, (a + i) := Nat.ascFactorial_eq_prod_range a k
+    rw [← h3]
+    exact h2
+  rw [hprod]
+  exact dvd_mul_of_dvd_right hp3 k.factorial
 
 end Nat
