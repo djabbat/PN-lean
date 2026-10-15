@@ -1,5 +1,7 @@
 # PN — prime-number theorems formalized in Lean 4
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23404818.svg)](https://doi.org/10.5281/zenodo.23404818)
+
 Formal, machine-checked proofs (Lean 4 + Mathlib) of classical prime-number theorems:
 
 - **Sylvester–Schur (1892/1929)** — the product of `k` consecutive integers each `> k` has
