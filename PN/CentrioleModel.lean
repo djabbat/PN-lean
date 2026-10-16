@@ -96,11 +96,100 @@ lemma multiHit_zero (n0 l : ℝ) (n : ℕ) :
       rw [pow_succ]
       ring
 
-/-! The exact `X_j(n) = n0·(n choose j)·l^j·(1-l)^(n-j)` binomial solution of the
-mean-field multi-hit recurrence is the analytic content of the Armitage-Doll power
-law (incidence ~ n^(k-1)). The exact algebra involves natural-number-subtraction
-edge cases; the numerical power-law slope (≈4.85 for k=6) is verified by the Rust
-`audit_cycles` harness. `multiHit_zero` gives the no-hit compartment exactly. -/
+/-- `X_j(n) = 0` whenever there are more hits than divisions (`j > n`):
+one cannot accumulate more hits than division steps. -/
+lemma multiHit_zero_of_lt {n0 l : ℝ} {j n : ℕ} (hj : n < j) :
+    multiHit n0 l j n = 0 := by
+  induction n generalizing j with
+  | zero =>
+      cases j with
+      | zero => simp at hj
+      | succ j => simp [multiHit]
+  | succ n ih =>
+      cases j with
+      | zero => simp at hj
+      | succ j =>
+          rw [multiHit]
+          have h1 : n < j + 1 := by omega
+          have h2 : n < j := by omega
+          rw [ih (j := j + 1) h1]
+          rw [ih (j := j) h2]
+          ring
+
+/-- Exact binomial solution of the mean-field multi-hit recurrence, for `j ≤ n`:
+`X_{j,n} = n0·(n choose j)·l^j·(1-l)^(n-j)`.
+This is the analytic content of the Armitage-Doll power law: with `k` rate-limiting
+hits, `X_{k-1,n} ~ n^(k-1)` and incidence ~ `n^(k-1)`. -/
+lemma multiHit_exact {n0 l : ℝ} {j n : ℕ} (hj : j ≤ n) :
+    multiHit n0 l j n = n0 * (n.choose j : ℝ) * l ^ j * (1 - l) ^ (n - j) := by
+  induction n generalizing j with
+  | zero =>
+      have hj0 : j = 0 := by omega
+      subst j
+      simp [multiHit]
+  | succ n ih =>
+      by_cases hjn : j ≤ n
+      · -- main case: j ≤ n, recurrence valid for both components
+        cases j with
+        | zero =>
+            rw [multiHit_zero]
+            simp
+        | succ j =>
+            rw [multiHit]
+            have hj1 : j + 1 ≤ n := hjn
+            have hj2 : j ≤ n := by omega
+            rw [ih (j := j + 1) hj1]
+            rw [ih (j := j) hj2]
+            -- exponent shift: (1-l)·(1-l)^(n-(j+1)) = (1-l)^(n-j)
+            have hshift : (1 - l) * (1 - l) ^ (n - (j + 1)) = (1 - l) ^ (n - j) := by
+              have hsub : n - (j + 1) + 1 = n - j := by omega
+              rw [← hsub]
+              rw [show n - (j + 1) + 1 = (n - (j + 1)) + 1 by omega]
+              rw [pow_succ]
+              ring
+            have hpascal : (n.choose (j + 1) : ℝ) + (n.choose j : ℝ) = ((n + 1).choose (j + 1) : ℝ) := by
+              rw [Nat.choose_succ_succ]
+              norm_num
+              ring
+            have htarget : (n + 1) - (j + 1) = n - j := by omega
+            have hll : l * l ^ j = l ^ (j + 1) := by
+              rw [pow_succ]
+              ring
+            calc
+              (1 - l) * (n0 * (n.choose (j + 1) : ℝ) * l ^ (j + 1) * (1 - l) ^ (n - (j + 1)))
+                  + l * (n0 * (n.choose j : ℝ) * l ^ j * (1 - l) ^ (n - j))
+                  = n0 * (n.choose (j + 1) : ℝ) * l ^ (j + 1) * (1 - l) ^ (n - j)
+                    + n0 * (n.choose j : ℝ) * l ^ (j + 1) * (1 - l) ^ (n - j) := by
+                    have hc : (1 - l) * (n0 * (n.choose (j + 1) : ℝ) * l ^ (j + 1) * (1 - l) ^ (n - (j + 1)))
+                        = n0 * (n.choose (j + 1) : ℝ) * l ^ (j + 1) * ((1 - l) * (1 - l) ^ (n - (j + 1))) := by ring
+                    have hc2 : l * (n0 * (n.choose j : ℝ) * l ^ j * (1 - l) ^ (n - j))
+                        = n0 * (n.choose j : ℝ) * (l * l ^ j) * (1 - l) ^ (n - j) := by ring
+                    rw [hc, hc2, hshift, hll]
+              _ = n0 * l ^ (j + 1) * (1 - l) ^ (n - j) * ((n.choose (j + 1) : ℝ) + (n.choose j : ℝ)) := by
+                    ring
+              _ = n0 * l ^ (j + 1) * (1 - l) ^ (n - j) * ((n + 1).choose (j + 1) : ℝ) := by
+                    rw [hpascal]
+              _ = n0 * ((n + 1).choose (j + 1) : ℝ) * l ^ (j + 1) * (1 - l) ^ (n + 1 - (j + 1)) := by
+                    rw [htarget]
+                    ring
+      · -- boundary case: j = n + 1 (all hits; X_{n+1}(n) = 0)
+        have hj1 : j = n + 1 := by omega
+        subst j
+        rw [multiHit]
+        rw [multiHit_zero_of_lt (by omega : n < n + 1)]
+        rw [ih (j := n) (by omega : n ≤ n)]
+        have hccn : (n.choose n : ℝ) = 1 := by
+          rw [Nat.choose_self]
+          norm_num
+        have hccs : ((n + 1).choose (n + 1) : ℝ) = 1 := by
+          rw [Nat.choose_self]
+          norm_num
+        have hnsub : n - n = 0 := Nat.sub_self n
+        have hsubs : (n + 1) - (n + 1) = 0 := Nat.sub_self (n + 1)
+        have hpow0 : (1 - l) ^ 0 = 1 := by norm_num
+        rw [hccn, hccs, hnsub, hsubs, hpow0]
+        rw [pow_succ]
+        ring
 
 /-! ## 3. Self-renewal decline → organismal aging -/
 
