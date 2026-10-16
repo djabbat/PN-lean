@@ -15,7 +15,7 @@ Formalization of the statement `TASK_NEW_FORMULA_PRIMES.md` (the "formula for th
 | `Sylvester.lean` | Lean 4 — **theorem**: Sylvester (1892) — product of k consecutive integers > k has a prime factor > k (`Nat.sylvester`, `Nat.weak_sylvester`) | `lake env lean Sylvester.lean` |
 | `SylvesterIneq.lean` | Lean 4 — analytic infrastructure for the far-region estimate (concavity of `farG`, endpoint positivity E1/E2) | `lake env lean SylvesterIneq.lean` (~40 s) |
 | `SylvesterFull.lean` | Lean 4 — **theorem**: `Nat.sylvester_binomial` (Schur binomial form) + full reduction, **0 `sorry`** | `lake env lean SylvesterFull.lean` (~100 min) |
-| `CentrioleAging.lean` | Lean 4 — **original model verified**: mathematical core of the centriole geometric-aging model (OU with maternal transmission, α≈0.97): closed forms, variance accumulation, strict monotonicity, finite equilibria (0 errors, 0 warnings) | `lake env lean CentrioleAging.lean` (~1 min) |
+| `CentrioleAging.lean` | **moved → `CASCADE/lean/`** (model CASCADE, formally verified core of the centriole geometric-aging model; OU with maternal transmission, α≈0.97) | — |
 | `PN_pure.lean` | Lean 4 **without Mathlib** — self-contained definitions + value checks via `native_decide` | `lean PN_pure.lean` |
 
 ## Scientific contributions (theorems, NOT empirical)
@@ -72,56 +72,27 @@ Environment: Lean 4.35.0, Mathlib v4.35.0.
 machine-verified formal proof in Lean/mathlib4, which is absent from Mathlib. A mathlib4
 PR proposal is in `PR.md`.
 
-## Centriole division-counter model — formalized core in Lean + numerical sims in Rust
+## CASCADE — organismal-aging model (Lean + Rust)
 
-`PN/CentrioleModel.lean` — **Lean**: the provable mathematical core (0 errors):
-- `reservoir_closed_form`, `reservoir_mono`, `reservoir_tendsto` — damage-reservoir
-  counter: closed form `D_n = d(1-(1-c)ⁿ)/c`, non-decreasing, limit `d/c`;
-- `multiHit_zero` — no-hit compartment `X_0(n) = n0(1-l)ⁿ`;
-- `levelEntropy_mono` — self-renewal decline → entropy non-decreasing (organismal aging);
-- `export_strictAnti` — `f(S)=f₀e^(−kS)` strictly decreasing (falsifiable prediction).
+The organismal-aging multi-counter model (division counters: centriole, telomeres,
+mtDNA, proteostasis, epigenetic mitotic clock, diploidy) now lives in its own folder:
 
-`PN/centriole_model/rust/` — numerical/stochastic part: Monte-Carlo, simulation,
-`audit_cycles` (120 cycles, all invariants pass), `pubmed_verify`. Python not used.
-
-
-
-`PN/centriole_model/` — a computational multi-counter model of organismal aging
-(division counters: centriole, telomeres, mtDNA, proteostasis, epigenetic mitotic
-clock, diploidy). Audit vs facts: **100/100** (see model_audit in the repo's source).
+- **`~/Desktop/Services/publications/CASCADE/lean/`** — formally verified mathematical core (Lean 4):
+  `CentrioleAging.lean` (geometric aging, OU), `CentrioleModel.lean` (reservoir, multi-hit,
+  Armitage–Doll, entropy, export).
+- **`~/Desktop/Services/publications/CASCADE/rust/`** — computational multi-counter simulation
+  (sections A–K). Audit vs facts: 100/100 (see `CASCADE/model_audit.md`).
 
 Key outputs: self-renewal decline = organismal aging (49% over 80 divisions);
 meiotic bottleneck resets counters between generations; diploidy two-hit buffer
-(haploid n*=9 vs diploid n*=66); population model reproduces the Armitage–Doll
-cancer curve t^4-5 (slope 4.85); HSC pool ~7% lost by 75 years (matches MCARA).
+(haploid n*=9 vs diploid n*=66); Armitage–Doll cancer curve t^4-5 (slope 4.85);
+HSC pool ~7% lost by 75 years (matches MCARA).
 
 ```bash
-cd PN/centriole_model/rust
+cd CASCADE/rust
 cargo run --bin counter_model        # model (sections A-K)
 cargo run --bin pubmed_verify -- batch   # PubMed evidence base
 ```
-
-## Centriole geometric-aging model — formally verified mathematics
-
-The mathematical core of the quantitative model of centriole geometric aging
-(Tqemaladze, centriole geometric-aging manuscript, in preparation) is machine-checked
-in `CentrioleAging.lean`:
-
-```
-L_{n+1} = α·L_n + (1-α)·L_0 + μ + ε_n ,   α ≈ 0.97
-```
-
-Proved in Lean (0 errors, 0 warnings):
-- **Closed forms**: `L_n = L_0 + μ(1-αⁿ)/(1-α)`, `Var(L_n) = σ²(1-(α²)ⁿ)/(1-α²)`.
-- **Persistence**: the variance is non-decreasing (`variance_mono`) — geometry does not
-  relax back to a population standard.
-- **Accumulation**: for `μ > 0` the length strictly increases with each division
-  (`length_drift_strict_mono`) — the geometry counts divisions.
-- **Finite equilibria**: `L_n → L_0 + μ/(1-α)`, `Var(L_n) → σ²/(1-α²)`
-  (`length_tendsto`, `variance_tendsto`).
-
-This is a first-of-kind artifact: the quantitative core of an aging model verified in a
-proof assistant.
 
 ## GapInterference (the prime gap interference model)
 
