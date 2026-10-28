@@ -1,5 +1,7 @@
 # PN — prime-number theorems formalized in Lean 4
 
+[![XERJ Corpus Hub contributor](https://hub.xerj.org/contributors/djabbat/badge.svg)](https://hub.xerj.org/contributors/djabbat)
+
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23405622.svg)](https://doi.org/10.5281/zenodo.23405622)
 
 Formal, machine-checked proofs (Lean 4 + Mathlib) of classical prime-number theorems:
